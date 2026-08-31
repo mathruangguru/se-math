@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Search } from "lucide-react";
-import { parseTsv } from "../lib/parseTsv";
+import { Link } from "react-router-dom";
+import { ExternalLink, Search, Settings2 } from "lucide-react";
+import { listHyperlist } from "../lib/hyperlist";
+import { useAuth } from "../context/auth-context";
 
 const MAX_ROWS = 800;
 const isHttp = (s) => /^https?:\/\//i.test(s);
 
 export default function HyperlistPage() {
+  const { isAdmin } = useAuth();
   const [rows, setRows] = useState(null); // null = memuat
   const [error, setError] = useState(false);
   const [q, setQ] = useState("");
@@ -13,27 +16,21 @@ export default function HyperlistPage() {
 
   useEffect(() => {
     let alive = true;
-    fetch(`${import.meta.env.BASE_URL}hyperlist.tsv`)
-      .then((r) => {
-        if (!r.ok) throw new Error(String(r.status));
-        return r.text();
-      })
-      .then((text) => {
+    listHyperlist()
+      .then((data) => {
         if (!alive) return;
-        const parsed = parseTsv(text)
-          .filter(
-            (f) => f.length >= 4 && f[0] && f[0].trim().toUpperCase() !== "KODE"
-          )
-          .map((f) => ({
-            kode: f[0].trim(),
-            topik: f[1].trim().replace(/\s+/g, " "),
-            subtopik: f[2].trim().replace(/\s+/g, " "),
-            link: f[3].trim(),
-          }));
-        setRows(parsed);
+        setRows(
+          data.map((r) => ({
+            ...r,
+            topik: (r.topik ?? "").replace(/\s+/g, " "),
+            subtopik: (r.subtopik ?? "").replace(/\s+/g, " "),
+          }))
+        );
       })
-      .catch(() => {
-        if (alive) setError(true);
+      .catch((err) => {
+        if (!alive) return;
+        console.error("[hyperlist] gagal memuat:", err);
+        setError(true);
       });
     return () => {
       alive = false;
@@ -63,13 +60,24 @@ export default function HyperlistPage() {
 
   return (
     <div className="mx-auto flex max-w-[1180px] flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-zinc-900">
-          Hyperlist
-        </h1>
-        <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-          Katalog materi PDF LMS — cari berdasarkan kode, topik, atau subtopik.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-zinc-900">
+            Hyperlist
+          </h1>
+          <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+            Katalog materi PDF LMS — cari berdasarkan kode, topik, atau
+            subtopik.
+          </p>
+        </div>
+        {isAdmin && (
+          <Link
+            to="/admin/hyperlist"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+          >
+            <Settings2 size={14} /> Kelola
+          </Link>
+        )}
       </div>
 
       {/* Kontrol */}
@@ -102,11 +110,15 @@ export default function HyperlistPage() {
 
       {error ? (
         <p className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm text-zinc-400">
-          Gagal memuat data. Pastikan <code>public/hyperlist.tsv</code> tersedia.
+          Gagal memuat data.
         </p>
       ) : !rows ? (
         <p className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm text-zinc-400">
           Memuat data…
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm text-zinc-400">
+          Belum ada materi.
         </p>
       ) : (
         <>
@@ -128,9 +140,9 @@ export default function HyperlistPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.slice(0, MAX_ROWS).map((r, i) => (
+                {filtered.slice(0, MAX_ROWS).map((r) => (
                   <tr
-                    key={r.kode + i}
+                    key={r.id}
                     className="border-t border-zinc-100 align-top transition-colors hover:bg-zinc-50"
                   >
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-500">

@@ -1,18 +1,31 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./components/layout/AppLayout";
+import RequireAuth from "./components/auth/RequireAuth";
+import RequireAdmin from "./components/admin/RequireAdmin";
+import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import TaskPage from "./pages/TaskPage";
 import HyperlistPage from "./pages/HyperlistPage";
+import HyperlistAdminPage from "./pages/admin/HyperlistAdminPage";
 
 const App = () => {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/task" element={<TaskPage />} />
-        <Route path="/hyperlist" element={<HyperlistPage />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/login" element={<LoginPage />} />
+
+      <Route element={<RequireAuth />}>
+        <Route element={<AppLayout />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/task" element={<TaskPage />} />
+          <Route path="/hyperlist" element={<HyperlistPage />} />
+
+          <Route element={<RequireAdmin />}>
+            <Route path="/admin/hyperlist" element={<HyperlistAdminPage />} />
+          </Route>
+
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Route>
       </Route>
     </Routes>
   );
