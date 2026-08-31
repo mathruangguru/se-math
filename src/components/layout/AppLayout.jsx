@@ -1,9 +1,18 @@
 import { useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
 import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 
-export default function AppLayout({ children }) {
+export default function AppLayout() {
   const [navOpen, setNavOpen] = useState(false);
+  const location = useLocation();
+
+  // Tutup drawer tiap pindah halaman (termasuk tombol back).
+  const [prevPath, setPrevPath] = useState(location.pathname);
+  if (prevPath !== location.pathname) {
+    setPrevPath(location.pathname);
+    if (navOpen) setNavOpen(false);
+  }
 
   return (
     <div className="flex h-screen flex-col bg-[#f4f4f5] lg:flex-row lg:p-6">
@@ -35,7 +44,7 @@ export default function AppLayout({ children }) {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <main className="scroll-slim flex-1 overflow-y-auto bg-[#fafafa] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-            {children}
+            <Outlet />
           </main>
         </div>
       </div>

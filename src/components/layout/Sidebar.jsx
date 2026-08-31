@@ -1,14 +1,17 @@
-import { useState } from "react";
-import { LayoutDashboard, LogOut, X } from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { LayoutDashboard, ListChecks, ListTree, LogOut, X } from "lucide-react";
 import ruangguruLogo from "../../assets/ruangguru.png";
+import { user } from "../../data/user";
 
 const mainNav = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/task", label: "Task", icon: ListChecks },
+  { to: "/hyperlist", label: "Hyperlist", icon: ListTree },
 ];
 
-function navItemClass(isActive) {
+function navItemClass({ isActive }) {
   return [
-    "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+    "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
     isActive
       ? "bg-brand-500 text-white shadow-sm shadow-brand-500/30"
       : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900",
@@ -16,8 +19,6 @@ function navItemClass(isActive) {
 }
 
 export default function Sidebar({ open = false, onClose = () => {} }) {
-  const [active, setActive] = useState("dashboard");
-
   return (
     <aside
       className={`fixed inset-y-0 left-0 z-50 flex w-[264px] shrink-0 flex-col border-r border-zinc-200/70 bg-white px-5 py-6 transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
@@ -43,32 +44,29 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
 
       {/* Main nav */}
       <nav className="mt-8 flex flex-col gap-1">
-        {mainNav.map(({ id, label, icon: Icon }) => {
-          const isActive = active === id;
-          return (
-            <button
-              key={id}
-              onClick={() => setActive(id)}
-              className={navItemClass(isActive)}
-            >
-              <Icon
-                size={18}
-                strokeWidth={isActive ? 2.4 : 2}
-                className={isActive ? "text-white" : "text-zinc-400"}
-              />
-              {label}
-            </button>
-          );
-        })}
+        {mainNav.map(({ to, label, icon: Icon }) => (
+          <NavLink key={to} to={to} onClick={onClose} className={navItemClass}>
+            {({ isActive }) => (
+              <>
+                <Icon
+                  size={18}
+                  strokeWidth={isActive ? 2.4 : 2}
+                  className={isActive ? "text-white" : "text-zinc-400"}
+                />
+                {label}
+              </>
+            )}
+          </NavLink>
+        ))}
       </nav>
 
       {/* User + sign out */}
       <div className="mt-auto flex flex-col gap-2 border-t border-zinc-200/70 pt-4">
         <div className="px-3">
           <p className="truncate text-sm font-semibold text-zinc-800">
-            Rohmat Setiawan
+            {user.name}
           </p>
-          <p className="truncate text-xs text-zinc-400">rohmat@ruangguru.com</p>
+          <p className="truncate text-xs text-zinc-400">{user.email}</p>
         </div>
         <button className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
           <LogOut size={18} strokeWidth={2} className="text-zinc-400" />
