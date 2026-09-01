@@ -708,7 +708,7 @@ export default function TaskPage() {
                     <p
                       className={`text-sm leading-snug ${
                         t.status === "done"
-                          ? "font-medium text-zinc-400 line-through"
+                          ? "font-medium text-zinc-400"
                           : "font-semibold text-zinc-900"
                       }`}
                     >
@@ -769,9 +769,7 @@ export default function TaskPage() {
                     <td className="px-4 py-3">
                       <p
                         className={`text-sm font-medium ${
-                          t.status === "done"
-                            ? "text-zinc-400 line-through"
-                            : "text-zinc-900"
+                          t.status === "done" ? "text-zinc-400" : "text-zinc-900"
                         }`}
                       >
                         {t.title}
@@ -844,7 +842,7 @@ export default function TaskPage() {
                         <p
                           className={`mt-1.5 text-sm leading-snug ${
                             t.status === "done"
-                              ? "font-medium text-zinc-400 line-through"
+                              ? "font-medium text-zinc-400"
                               : "font-semibold text-zinc-900"
                           }`}
                         >
