@@ -1,6 +1,7 @@
 import { supabase, hasSupabase } from "./supabase";
 
-const T_COLS = "id, title, description, priority, status, deadline";
+const T_COLS =
+  "id, title, description, priority, status, deadline, assignee_id";
 const PAGE = 1000;
 
 function ensure() {
@@ -14,6 +15,7 @@ function clean(row) {
     priority: row.priority ?? "P2",
     status: row.status ?? "todo",
     deadline: row.deadline ? row.deadline : null,
+    assignee_id: row.assignee_id ? row.assignee_id : null,
   };
 }
 
@@ -75,6 +77,17 @@ export async function setTaskStatus(id, status) {
   const { data, error } = await supabase.rpc("se_task_set_status", {
     p_id: id,
     p_status: status,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/** Ubah assignee saja — boleh member biasa. assigneeId null = lepas. */
+export async function setTaskAssignee(id, assigneeId) {
+  ensure();
+  const { data, error } = await supabase.rpc("se_task_set_assignee", {
+    p_id: id,
+    p_assignee: assigneeId || null,
   });
   if (error) throw error;
   return data;
