@@ -55,9 +55,10 @@ export default function Avatar({ name = "", id = "", size = 24, title }) {
   );
 }
 
-// Tumpukan avatar yang saling tumpang tindih + "+N" kalau kelebihan.
-// people: [{ id, name }].
-export function AvatarGroup({ people = [], size = 22, max = 4 }) {
+// Tumpukan avatar + "+N" kalau kelebihan. people: [{ id, name }].
+// Avatar kiri di paling atas; ring putih tipis (1px) cuma buat misahin
+// dua lingkaran yang warnanya kebetulan mirip.
+export function AvatarGroup({ people = [], size = 20, max = 4 }) {
   if (people.length === 0) return null;
   const shown = people.slice(0, max);
   const rest = people.length - shown.length;
@@ -69,9 +70,9 @@ export function AvatarGroup({ people = [], size = 22, max = 4 }) {
       {shown.map((p, i) => (
         <span
           key={p.id ?? i}
-          className="relative rounded-full shadow-[0_0_0_2px_#fff]"
+          className="relative rounded-full shadow-[0_0_0_1px_#fff]"
           style={{
-            marginLeft: i === 0 ? 0 : -(size * 0.2),
+            marginLeft: i === 0 ? 0 : -(size * 0.28),
             zIndex: shown.length - i,
           }}
         >
