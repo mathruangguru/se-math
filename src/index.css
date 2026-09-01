@@ -62,3 +62,18 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Jokes Corner — "kedip" tiap kartu ganti pas fitur Acak lagi ngocok */
+@keyframes joke-flick {
+  from {
+    opacity: 0.35;
+    transform: translateY(3px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.joke-flick {
+  animation: joke-flick 110ms ease-out;
+}
