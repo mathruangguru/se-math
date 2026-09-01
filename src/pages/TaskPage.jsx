@@ -320,7 +320,12 @@ export default function TaskPage() {
   const rollupAvatars = (t) => {
     const ids = rollupByTask.get(t.id) ?? [];
     if (ids.length === 0)
-      return <span className="text-[11px] text-zinc-300">Belum diassign</span>;
+      return (
+        <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400">
+          <span className="h-[22px] w-[22px] rounded-full border border-dashed border-zinc-300" />
+          Belum diassign
+        </span>
+      );
     return (
       <AvatarGroup
         people={ids.map((id) => {
@@ -685,7 +690,7 @@ export default function TaskPage() {
           {filtered.map((t) => (
             <div
               key={t.id}
-              className={`relative overflow-hidden rounded-xl border border-zinc-200/80 bg-white p-4 pl-5 transition-shadow hover:shadow-sm ${
+              className={`group relative overflow-hidden rounded-xl border border-zinc-200/80 bg-white p-4 pl-5 transition-shadow hover:shadow-sm ${
                 t.status === "done" ? "opacity-70" : ""
               }`}
             >
@@ -717,9 +722,13 @@ export default function TaskPage() {
                   </div>
                   {subChecklist(t)}
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-2">
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
                   {statusSelect(t)}
-                  <div className="flex items-center">{adminActions(t)}</div>
+                  {isAdmin && (
+                    <div className="flex items-center opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                      {adminActions(t)}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

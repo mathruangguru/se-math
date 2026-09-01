@@ -1,25 +1,32 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2, UserPlus } from "lucide-react";
-import { AvatarGroup } from "../ui/Avatar";
+import Avatar, { AvatarGroup } from "../ui/Avatar";
 import { personName } from "../../lib/people";
 
-const POP_W = 208; // w-52
+const POP_W = 256; // w-64
+const SEARCH_FROM = 7;
 
-function popStyle(rect) {
-  const gap = 4;
+function popPosition(rect) {
+  const gap = 6;
   const left = Math.max(
     8,
     Math.min(rect.right - POP_W, window.innerWidth - POP_W - 8)
   );
   const below = window.innerHeight - rect.bottom;
-  if (below < 240 && rect.top > below) {
-    return { left, bottom: window.innerHeight - rect.top + gap };
-  }
-  return { left, top: rect.bottom + gap };
+  const placement = below < 260 && rect.top > below ? "top" : "bottom";
+  const style =
+    placement === "top"
+      ? { left, bottom: window.innerHeight - rect.top + gap, width: POP_W }
+      : { left, top: rect.bottom + gap, width: POP_W };
+  const caretLeft = Math.max(
+    12,
+    Math.min(rect.left + rect.width / 2 - left - 5, POP_W - 22)
+  );
+  return { style, placement, caretLeft };
 }
 
-// Checklist subtask di dalam sebuah task. Badge "2/5" yang bisa dibuka.
-// items: [{ id, title, done, assignees: [personId] }].
+// Checklist subtask di dalam sebuah task. Badge "2/5" yang bisa dibuka jadi
+// panel ternested. items: [{ id, title, done, assignees: [personId] }].
 // people: [{ id, first_name, last_name, email }] — buat picker assignee.
 // onToggle/onAdd/onDelete/onSetAssignees dikelola parent.
 export default function SubtaskChecklist({
@@ -34,6 +41,7 @@ export default function SubtaskChecklist({
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [picker, setPicker] = useState(null); // { subId, rect }
+  const [pquery, setPquery] = useState("");
   const popRef = useRef(null);
 
   useEffect(() => {
@@ -79,12 +87,18 @@ export default function SubtaskChecklist({
 
   const openPicker = (e, subId) => {
     const rect = e.currentTarget.getBoundingClientRect();
+    setPquery("");
     setPicker((cur) => (cur?.subId === subId ? null : { subId, rect }));
   };
 
-  const pickerSub = picker
-    ? items.find((x) => x.id === picker.subId)
-    : null;
+  const pickerSub = picker ? items.find((x) => x.id === picker.subId) : null;
+  const selectedCount = pickerSub?.assignees?.length ?? 0;
+  const showSearch = people.length > SEARCH_FROM;
+  const pq = pquery.trim().toLowerCase();
+  const pickList = pq
+    ? people.filter((p) => personName(p).toLowerCase().includes(pq))
+    : people;
+  const pos = picker ? popPosition(picker.rect) : null;
 
   return (
     <div className="mt-1.5">
@@ -100,13 +114,16 @@ export default function SubtaskChecklist({
       </button>
 
       {open && (
-        <div className="mt-1 flex flex-col gap-1.5 border-l border-zinc-200 pl-2.5">
+        <div className="mt-1.5 flex max-w-xl flex-col gap-0.5 rounded-lg border border-zinc-200/70 bg-zinc-50/60 p-2">
           {items.map((s) => {
             const chosen = people.filter((p) =>
               (s.assignees ?? []).includes(p.id)
             );
             return (
-              <div key={s.id} className="flex items-center gap-2">
+              <div
+                key={s.id}
+                className="group/strow flex items-center gap-2 rounded-md px-1 py-1 hover:bg-white"
+              >
                 <input
                   type="checkbox"
                   checked={s.done}
@@ -114,7 +131,7 @@ export default function SubtaskChecklist({
                   className="h-3.5 w-3.5 shrink-0 accent-brand-500"
                 />
                 <span
-                  className={`flex-1 text-xs ${
+                  className={`min-w-0 flex-1 truncate text-xs ${
                     s.done ? "text-zinc-400 line-through" : "text-zinc-700"
                   }`}
                 >
@@ -124,7 +141,7 @@ export default function SubtaskChecklist({
                 <button
                   type="button"
                   onClick={(e) => openPicker(e, s.id)}
-                  className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] text-zinc-500 transition-colors hover:bg-zinc-50 ${
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] text-zinc-500 transition-colors hover:bg-zinc-50 ${
                     picker?.subId === s.id
                       ? "border-brand-400 bg-brand-50"
                       : "border-zinc-200"
@@ -154,10 +171,10 @@ export default function SubtaskChecklist({
                       setPicker((c) => (c?.subId === s.id ? null : c));
                       onDelete(s.id);
                     }}
-                    className="text-zinc-300 transition-colors hover:text-rose-500"
+                    className="shrink-0 text-zinc-300 opacity-0 transition-opacity hover:text-rose-500 focus-visible:opacity-100 group-hover/strow:opacity-100"
                     aria-label="Hapus subtask"
                   >
-                    <Trash2 size={12} />
+                    <Trash2 size={14} />
                   </button>
                 )}
               </div>
@@ -165,26 +182,26 @@ export default function SubtaskChecklist({
           })}
 
           {isAdmin && (
-            <form onSubmit={submit} className="mt-0.5 flex items-center gap-1.5">
+            <form onSubmit={submit} className="mt-1 flex items-center gap-1.5 px-1">
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Tambah subtask…"
-                className="h-6 flex-1 rounded border border-zinc-200 px-2 text-xs text-zinc-700 outline-none focus:border-brand-500"
+                className="h-7 flex-1 rounded-md border border-zinc-200 bg-white px-2 text-xs text-zinc-700 outline-none focus:border-brand-500"
               />
               <button
                 type="submit"
-                className="inline-grid h-6 w-6 place-items-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                className="inline-grid h-7 w-7 shrink-0 place-items-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
                 aria-label="Tambah"
               >
-                <Plus size={13} />
+                <Plus size={14} />
               </button>
             </form>
           )}
         </div>
       )}
 
-      {picker && (
+      {picker && pos && (
         <>
           <div
             className="fixed inset-0 z-40"
@@ -194,29 +211,74 @@ export default function SubtaskChecklist({
           <div
             ref={popRef}
             role="menu"
-            style={{ ...popStyle(picker.rect), width: POP_W }}
-            className="scroll-slim fixed z-50 max-h-56 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-1 shadow-lg"
+            style={pos.style}
+            className="fixed z-50 rounded-xl border border-zinc-200 bg-white shadow-lg ring-1 ring-black/[0.04]"
           >
-            {people.length === 0 ? (
-              <p className="px-2 py-1.5 text-[11px] text-zinc-400">
-                Belum ada orang buat di-assign.
-              </p>
-            ) : (
-              people.map((p) => (
-                <label
-                  key={p.id}
-                  className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-zinc-700 transition-colors hover:bg-zinc-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={(pickerSub?.assignees ?? []).includes(p.id)}
-                    onChange={() => toggleAssignee(pickerSub, p.id)}
-                    className="h-3.5 w-3.5 accent-brand-500"
-                  />
-                  <span className="truncate">{personName(p)}</span>
-                </label>
-              ))
+            <span
+              style={{ left: pos.caretLeft }}
+              className={`absolute h-2.5 w-2.5 rotate-45 bg-white ${
+                pos.placement === "top"
+                  ? "-bottom-1 border-b border-r border-zinc-200"
+                  : "-top-1 border-l border-t border-zinc-200"
+              }`}
+              aria-hidden="true"
+            />
+            <div className="flex items-center justify-between border-b border-zinc-100 px-2.5 py-2">
+              <span className="text-[11px] font-semibold text-zinc-500">
+                Assign ke
+              </span>
+              {selectedCount > 0 && (
+                <span className="text-[11px] text-zinc-400">
+                  {selectedCount} dipilih
+                </span>
+              )}
+            </div>
+
+            {showSearch && (
+              <div className="border-b border-zinc-100 p-1.5">
+                <input
+                  value={pquery}
+                  onChange={(e) => setPquery(e.target.value)}
+                  placeholder="Cari orang…"
+                  className="h-7 w-full rounded-md border border-zinc-200 px-2 text-xs text-zinc-700 outline-none focus:border-brand-500"
+                />
+              </div>
             )}
+
+            <div className="scroll-slim max-h-60 overflow-y-auto p-1">
+              {pickList.length === 0 ? (
+                <p className="px-2 py-1.5 text-[11px] text-zinc-400">
+                  {people.length === 0
+                    ? "Belum ada orang buat di-assign."
+                    : "Nggak ada yang cocok."}
+                </p>
+              ) : (
+                pickList.map((p) => {
+                  const checked = (pickerSub?.assignees ?? []).includes(p.id);
+                  return (
+                    <label
+                      key={p.id}
+                      className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
+                        checked
+                          ? "bg-brand-50/70 text-zinc-900"
+                          : "text-zinc-700 hover:bg-zinc-50"
+                      }`}
+                    >
+                      <Avatar name={personName(p)} id={p.id} size={20} />
+                      <span className="min-w-0 flex-1 truncate">
+                        {personName(p)}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleAssignee(pickerSub, p.id)}
+                        className="h-3.5 w-3.5 shrink-0 accent-brand-500"
+                      />
+                    </label>
+                  );
+                })
+              )}
+            </div>
           </div>
         </>
       )}
