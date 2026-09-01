@@ -159,6 +159,64 @@ create policy "se_hyperlist write admin"
   on public.se_hyperlist for all
   using (public.se_is_admin()) with check (public.se_is_admin());
 
+-- ── se_task: board tugas bersama ────────────────────────────────────
+-- Semua user login lihat & bisa ubah STATUS. CRUD penuh admin saja.
+
+create table if not exists public.se_task (
+  id          uuid primary key default gen_random_uuid(),
+  title       text not null,
+  description text not null default '',
+  priority    text not null default 'P2'
+              check (priority in ('P0', 'P1', 'P2', 'P3', 'P4')),
+  status      text not null default 'todo'
+              check (status in ('todo', 'doing', 'done')),
+  deadline    date,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz
+);
+create index if not exists se_task_status_idx on public.se_task (status);
+
+alter table public.se_task enable row level security;
+
+grant select, insert, update, delete on public.se_task to authenticated;
+grant all on public.se_task to service_role;
+
+drop policy if exists "se_task read" on public.se_task;
+create policy "se_task read"
+  on public.se_task for select using (auth.uid() is not null);
+
+drop policy if exists "se_task write admin" on public.se_task;
+create policy "se_task write admin"
+  on public.se_task for all
+  using (public.se_is_admin()) with check (public.se_is_admin());
+
+-- Member (bukan admin) boleh ubah status doang — lewat RPC ini.
+create or replace function public.se_task_set_status(p_id uuid, p_status text)
+returns public.se_task
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_row public.se_task%rowtype;
+begin
+  if not exists (select 1 from public.se_profile where id = auth.uid()) then
+    raise exception 'Bukan member.' using errcode = '42501';
+  end if;
+  if p_status not in ('todo', 'doing', 'done') then
+    raise exception 'Status tidak valid.';
+  end if;
+
+  update public.se_task
+     set status = p_status, updated_at = now()
+   where id = p_id
+   returning * into v_row;
+
+  return v_row;
+end;
+$$;
+grant execute on function public.se_task_set_status(uuid, text) to authenticated;
+
 -- ── Bootstrap admin pertama ─────────────────────────────────────────
 -- User-nya harus sudah ada di auth.users (pernah login coaching-math, atau
 -- dibuat lewat Authentication -> Users -> Add user). Ganti email, uncomment,

@@ -12,6 +12,9 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
    - `se_profile` (`role`: `member` | `admin`) + `se_is_admin()` +
      `se_add_member(email, role)` + trigger `se_profile_guard_self`
    - `se_hyperlist` + RLS (baca publik, tulis `se_is_admin()`)
+   - `se_task` + RLS (baca user login, tulis `se_is_admin()`) +
+     `se_task_set_status(id, status)` — biar member bisa ubah status doang
+   - Aman di-run ulang tiap ada tabel baru.
 2. **Bikin admin pertama** — di `se_schema.sql` bagian bawah, uncomment
    blok bootstrap, ganti email (user harus sudah pernah login
    coaching-math / dibuat di Authentication → Users), Run.
@@ -54,13 +57,20 @@ hapus/turunkan role akun sendiri (trigger `se_profile_guard_self`).
 baris per materi) → centang **Ganti semua isi tabel** → **Impor**. Format
 sama persis dengan `public/hyperlist.tsv`.
 
+## Task — `/task`
+
+Board bersama. Semua user login lihat & bisa ubah **status** (lewat RPC
+`se_task_set_status`). Tambah / edit / hapus task cuma admin. Tampilan
+List / Tabel / Kanban (pilihan disimpan di `localStorage`).
+
 ## Isi
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` + `se_add_member()` + guard trigger + `se_hyperlist` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_task` + `se_task_set_status()` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
-(list/create/update/delete/bulkCreate), `src/lib/members.js`
+(list/create/update/delete/bulkCreate), `src/lib/tasks.js`
+(list/create/update/delete + `setTaskStatus` rpc), `src/lib/members.js`
 (list/add/setRole/remove), `src/lib/auth.js` +
 `src/context/AuthProvider.jsx` (session, `se_profile`, role).
