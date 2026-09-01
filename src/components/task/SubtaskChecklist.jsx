@@ -1,7 +1,22 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2, UserPlus } from "lucide-react";
 import { AvatarGroup } from "../ui/Avatar";
 import { personName } from "../../lib/people";
+
+const POP_W = 208; // w-52
+
+function popStyle(rect) {
+  const gap = 4;
+  const left = Math.max(
+    8,
+    Math.min(rect.right - POP_W, window.innerWidth - POP_W - 8)
+  );
+  const below = window.innerHeight - rect.bottom;
+  if (below < 240 && rect.top > below) {
+    return { left, bottom: window.innerHeight - rect.top + gap };
+  }
+  return { left, top: rect.bottom + gap };
+}
 
 // Checklist subtask di dalam sebuah task. Badge "2/5" yang bisa dibuka.
 // items: [{ id, title, done, assignees: [personId] }].
@@ -18,7 +33,26 @@ export default function SubtaskChecklist({
 }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const [pickerFor, setPickerFor] = useState(null); // subtask id
+  const [picker, setPicker] = useState(null); // { subId, rect }
+  const popRef = useRef(null);
+
+  useEffect(() => {
+    if (!picker) return;
+    const close = () => setPicker(null);
+    const onKey = (e) => e.key === "Escape" && close();
+    const onScroll = (e) => {
+      if (popRef.current && popRef.current.contains(e.target)) return;
+      close();
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [picker]);
 
   if (items.length === 0 && !isAdmin) return null;
 
@@ -35,12 +69,22 @@ export default function SubtaskChecklist({
   };
 
   const toggleAssignee = (sub, personId) => {
+    if (!sub) return;
     const cur = sub.assignees ?? [];
     const next = cur.includes(personId)
       ? cur.filter((x) => x !== personId)
       : [...cur, personId];
     onSetAssignees(sub.id, next);
   };
+
+  const openPicker = (e, subId) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPicker((cur) => (cur?.subId === subId ? null : { subId, rect }));
+  };
+
+  const pickerSub = picker
+    ? items.find((x) => x.id === picker.subId)
+    : null;
 
   return (
     <div className="mt-1.5">
@@ -58,83 +102,63 @@ export default function SubtaskChecklist({
       {open && (
         <div className="mt-1 flex flex-col gap-1.5 border-l border-zinc-200 pl-2.5">
           {items.map((s) => {
-            const chosen = people.filter((p) => (s.assignees ?? []).includes(p.id));
+            const chosen = people.filter((p) =>
+              (s.assignees ?? []).includes(p.id)
+            );
             return (
-              <div key={s.id} className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={s.done}
-                    onChange={(e) => onToggle(s.id, e.target.checked)}
-                    className="h-3.5 w-3.5 shrink-0 accent-brand-500"
-                  />
-                  <span
-                    className={`flex-1 text-xs ${
-                      s.done ? "text-zinc-400 line-through" : "text-zinc-700"
-                    }`}
-                  >
-                    {s.title}
-                  </span>
+              <div key={s.id} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={s.done}
+                  onChange={(e) => onToggle(s.id, e.target.checked)}
+                  className="h-3.5 w-3.5 shrink-0 accent-brand-500"
+                />
+                <span
+                  className={`flex-1 text-xs ${
+                    s.done ? "text-zinc-400 line-through" : "text-zinc-700"
+                  }`}
+                >
+                  {s.title}
+                </span>
 
+                <button
+                  type="button"
+                  onClick={(e) => openPicker(e, s.id)}
+                  className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] text-zinc-500 transition-colors hover:bg-zinc-50 ${
+                    picker?.subId === s.id
+                      ? "border-brand-400 bg-brand-50"
+                      : "border-zinc-200"
+                  }`}
+                  title="Atur assignee"
+                >
+                  {chosen.length === 0 ? (
+                    <>
+                      <UserPlus size={12} /> Assign
+                    </>
+                  ) : (
+                    <AvatarGroup
+                      people={chosen.map((p) => ({
+                        id: p.id,
+                        name: personName(p),
+                      }))}
+                      size={18}
+                      max={3}
+                    />
+                  )}
+                </button>
+
+                {isAdmin && (
                   <button
                     type="button"
-                    onClick={() =>
-                      setPickerFor((cur) => (cur === s.id ? null : s.id))
-                    }
-                    className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-1.5 py-0.5 text-[11px] text-zinc-500 transition-colors hover:bg-zinc-50"
-                    title="Atur assignee"
+                    onClick={() => {
+                      setPicker((c) => (c?.subId === s.id ? null : c));
+                      onDelete(s.id);
+                    }}
+                    className="text-zinc-300 transition-colors hover:text-rose-500"
+                    aria-label="Hapus subtask"
                   >
-                    {chosen.length === 0 ? (
-                      <>
-                        <UserPlus size={12} /> Assign
-                      </>
-                    ) : (
-                      <AvatarGroup
-                        people={chosen.map((p) => ({
-                          id: p.id,
-                          name: personName(p),
-                        }))}
-                        size={18}
-                        max={3}
-                      />
-                    )}
+                    <Trash2 size={12} />
                   </button>
-
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => onDelete(s.id)}
-                      className="text-zinc-300 transition-colors hover:text-rose-500"
-                      aria-label="Hapus subtask"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  )}
-                </div>
-
-                {pickerFor === s.id && (
-                  <div className="ml-6 flex flex-col rounded-lg border border-zinc-200 bg-white p-1">
-                    {people.length === 0 ? (
-                      <p className="px-2 py-1 text-[11px] text-zinc-400">
-                        Belum ada orang buat di-assign.
-                      </p>
-                    ) : (
-                      people.map((p) => (
-                        <label
-                          key={p.id}
-                          className="flex items-center gap-2 rounded px-2 py-1 text-xs text-zinc-700 transition-colors hover:bg-zinc-50"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={(s.assignees ?? []).includes(p.id)}
-                            onChange={() => toggleAssignee(s, p.id)}
-                            className="h-3.5 w-3.5 accent-brand-500"
-                          />
-                          <span className="truncate">{personName(p)}</span>
-                        </label>
-                      ))
-                    )}
-                  </div>
                 )}
               </div>
             );
@@ -158,6 +182,43 @@ export default function SubtaskChecklist({
             </form>
           )}
         </div>
+      )}
+
+      {picker && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setPicker(null)}
+            aria-hidden="true"
+          />
+          <div
+            ref={popRef}
+            role="menu"
+            style={{ ...popStyle(picker.rect), width: POP_W }}
+            className="scroll-slim fixed z-50 max-h-56 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-1 shadow-lg"
+          >
+            {people.length === 0 ? (
+              <p className="px-2 py-1.5 text-[11px] text-zinc-400">
+                Belum ada orang buat di-assign.
+              </p>
+            ) : (
+              people.map((p) => (
+                <label
+                  key={p.id}
+                  className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-zinc-700 transition-colors hover:bg-zinc-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={(pickerSub?.assignees ?? []).includes(p.id)}
+                    onChange={() => toggleAssignee(pickerSub, p.id)}
+                    className="h-3.5 w-3.5 accent-brand-500"
+                  />
+                  <span className="truncate">{personName(p)}</span>
+                </label>
+              ))
+            )}
+          </div>
+        </>
       )}
     </div>
   );
