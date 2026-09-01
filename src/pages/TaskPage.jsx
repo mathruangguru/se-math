@@ -63,10 +63,10 @@ const filterCls =
   "h-9 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-brand-500 focus:bg-white";
 
 const PRIO_META = {
-  P0: { chip: "bg-rose-100 text-rose-700", bar: "bg-rose-400" },
-  P1: { chip: "bg-brand-100 text-brand-700", bar: "bg-brand-400" },
-  P2: { chip: "bg-amber-100 text-amber-700", bar: "bg-amber-400" },
-  P3: { chip: "bg-sky-100 text-sky-700", bar: "bg-sky-400" },
+  P0: { chip: "bg-rose-100 text-rose-700", bar: "bg-rose-400/80" },
+  P1: { chip: "bg-brand-100 text-brand-700", bar: "bg-brand-400/80" },
+  P2: { chip: "bg-amber-100 text-amber-700", bar: "bg-amber-400/80" },
+  P3: { chip: "bg-sky-100 text-sky-700", bar: "bg-sky-400/80" },
   P4: { chip: "bg-zinc-100 text-zinc-600", bar: "bg-zinc-300" },
 };
 const STATUS_META = {
@@ -493,8 +493,12 @@ export default function TaskPage() {
       </>
     );
 
+  // List view kartunya pendek — kasih lebar terbatas biar kontrol nggak
+  // kelempar jauh ke kanan. Tabel & kanban tetap butuh ruang lebar.
+  const shellMax = view === "list" ? "max-w-[880px]" : "max-w-[1180px]";
+
   return (
-    <div className="mx-auto flex max-w-[1180px] flex-col gap-6">
+    <div className={`mx-auto flex ${shellMax} flex-col gap-6`}>
       <div>
         <h1 className="text-xl font-bold tracking-tight text-zinc-900">Task</h1>
         <p className="mt-1 text-xs leading-relaxed text-zinc-500">
@@ -650,7 +654,7 @@ export default function TaskPage() {
       {/* Ringkasan */}
       {status === "ready" && rows.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-zinc-900 px-2.5 py-1 font-semibold text-white">
+          <span className="rounded-full bg-zinc-800 px-2.5 py-1 font-semibold text-white">
             {rows.length} task
           </span>
           {STATUSES.map((s) => (
@@ -686,16 +690,14 @@ export default function TaskPage() {
           Belum ada task{isAdmin ? ". Tambah satu." : "."}
         </p>
       ) : view === "list" ? (
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-2">
           {filtered.map((t) => (
             <div
               key={t.id}
-              className={`group relative overflow-hidden rounded-xl border border-zinc-200/80 bg-white p-4 pl-5 transition-shadow hover:shadow-sm ${
-                t.status === "done" ? "opacity-70" : ""
-              }`}
+              className="group relative overflow-hidden rounded-xl border border-zinc-200/80 bg-white p-3.5 pl-4 transition-shadow hover:shadow-sm"
             >
               <span
-                className={`absolute inset-y-0 left-0 w-1 ${
+                className={`absolute inset-y-0 left-0 w-[3px] ${
                   (PRIO_META[t.priority] ?? PRIO_META.P2).bar
                 }`}
               />
@@ -704,8 +706,10 @@ export default function TaskPage() {
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <PriorityChip p={t.priority} />
                     <p
-                      className={`text-sm font-semibold leading-snug text-zinc-900 ${
-                        t.status === "done" ? "line-through" : ""
+                      className={`text-sm leading-snug ${
+                        t.status === "done"
+                          ? "font-medium text-zinc-400 line-through"
+                          : "font-semibold text-zinc-900"
                       }`}
                     >
                       {t.title}
@@ -716,7 +720,7 @@ export default function TaskPage() {
                       {t.description}
                     </p>
                   )}
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     {rollupAvatars(t)}
                     <Deadline task={t} />
                   </div>
@@ -764,8 +768,10 @@ export default function TaskPage() {
                   >
                     <td className="px-4 py-3">
                       <p
-                        className={`text-sm font-medium text-zinc-900 ${
-                          t.status === "done" ? "line-through opacity-60" : ""
+                        className={`text-sm font-medium ${
+                          t.status === "done"
+                            ? "text-zinc-400 line-through"
+                            : "text-zinc-900"
                         }`}
                       >
                         {t.title}
@@ -822,22 +828,24 @@ export default function TaskPage() {
                     return (
                       <div
                         key={t.id}
-                        className="relative overflow-hidden rounded-xl border border-zinc-200/80 bg-white p-3 pl-3.5"
+                        className="group relative overflow-hidden rounded-xl border border-zinc-200/80 bg-white p-3 pl-3.5"
                       >
                         <span
-                          className={`absolute inset-y-0 left-0 w-1 ${
+                          className={`absolute inset-y-0 left-0 w-[3px] ${
                             (PRIO_META[t.priority] ?? PRIO_META.P2).bar
                           }`}
                         />
                         <div className="flex items-start justify-between gap-2">
                           <PriorityChip p={t.priority} />
-                          <div className="flex items-center">
+                          <div className="flex items-center opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
                             {adminActions(t)}
                           </div>
                         </div>
                         <p
-                          className={`mt-1.5 text-sm font-semibold leading-snug text-zinc-900 ${
-                            t.status === "done" ? "line-through opacity-60" : ""
+                          className={`mt-1.5 text-sm leading-snug ${
+                            t.status === "done"
+                              ? "font-medium text-zinc-400 line-through"
+                              : "font-semibold text-zinc-900"
                           }`}
                         >
                           {t.title}
