@@ -294,7 +294,8 @@ export default function HyperlistAdminPage() {
           </p>
           <p className="text-xs text-zinc-500">
             Tempel data dipisah tab: <code>KODE ⇥ TOPIK ⇥ SUBTOPIK ⇥ LINK</code>{" "}
-            (satu baris per materi). Baris header otomatis diabaikan.
+            (satu baris per materi). Baris header otomatis diabaikan. Kode
+            kembar tetap masuk semua — nggak saling menimpa.
           </p>
           <textarea
             value={importText}
