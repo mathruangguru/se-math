@@ -56,8 +56,8 @@ export default function Avatar({ name = "", id = "", size = 24, title }) {
 }
 
 // Tumpukan avatar + "+N" kalau kelebihan. people: [{ id, name }].
-// Avatar kiri di paling atas; ring putih tipis (1px) cuma buat misahin
-// dua lingkaran yang warnanya kebetulan mirip.
+// Avatar kiri di paling atas — pas nimpa yang kanan, potongannya bulat
+// bersih. Nggak pakai ring putih (bikin berantakan di lingkaran kecil).
 export function AvatarGroup({ people = [], size = 20, max = 4 }) {
   if (people.length === 0) return null;
   const shown = people.slice(0, max);
@@ -70,9 +70,9 @@ export function AvatarGroup({ people = [], size = 20, max = 4 }) {
       {shown.map((p, i) => (
         <span
           key={p.id ?? i}
-          className="relative rounded-full shadow-[0_0_0_1px_#fff]"
+          className="relative inline-flex"
           style={{
-            marginLeft: i === 0 ? 0 : -(size * 0.28),
+            marginLeft: i === 0 ? 0 : -(size * 0.22),
             zIndex: shown.length - i,
           }}
         >
