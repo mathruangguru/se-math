@@ -55,33 +55,28 @@ export default function Avatar({ name = "", id = "", size = 24, title }) {
   );
 }
 
-// Tumpukan avatar yang saling tumpang tindih + "+N" kalau kelebihan.
-// people: [{ id, name }].
-export function AvatarGroup({ people = [], size = 22, max = 4 }) {
+// Deretan avatar berjajar (nggak numpuk) + "+N" kalau kelebihan.
+// people: [{ id, name }]. Numpuk versi kecil bikin inisial ketutупan —
+// jajar rapi + jarak tipis kebacanya jauh lebih enak.
+export function AvatarGroup({ people = [], size = 20, max = 4 }) {
   if (people.length === 0) return null;
   const shown = people.slice(0, max);
   const rest = people.length - shown.length;
   return (
     <span
-      className="inline-flex items-center"
+      className="inline-flex items-center gap-1"
       title={people.map((p) => p.name).join(", ")}
     >
       {shown.map((p, i) => (
-        <span
+        <Avatar
           key={p.id ?? i}
-          className="relative rounded-full shadow-[0_0_0_2px_#fff]"
-          style={{
-            marginLeft: i === 0 ? 0 : -(size * 0.2),
-            zIndex: shown.length - i,
-          }}
-        >
-          <Avatar name={p.name} id={p.id ?? p.name} size={size} />
-        </span>
+          name={p.name}
+          id={p.id ?? p.name}
+          size={size}
+        />
       ))}
       {rest > 0 && (
-        <span className="ml-1.5 text-[11px] font-semibold text-zinc-400">
-          +{rest}
-        </span>
+        <span className="text-[11px] font-semibold text-zinc-400">+{rest}</span>
       )}
     </span>
   );

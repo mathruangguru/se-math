@@ -322,7 +322,7 @@ export default function TaskPage() {
     if (ids.length === 0)
       return (
         <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400">
-          <span className="h-[22px] w-[22px] rounded-full border border-dashed border-zinc-300" />
+          <span className="h-5 w-5 rounded-full border border-dashed border-zinc-300" />
           Belum diassign
         </span>
       );
@@ -332,7 +332,7 @@ export default function TaskPage() {
           const p = personById.get(id);
           return { id, name: p ? personName(p) : "?" };
         })}
-        size={22}
+        size={20}
         max={4}
       />
     );
