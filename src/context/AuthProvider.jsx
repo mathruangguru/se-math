@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase, hasSupabase } from "../lib/supabase";
 import { AuthContext } from "./auth-context";
 
-// Profile dibaca dari `coaching_profiles` — se-math dan coaching-math pakai
-// project Supabase yang sama, jadi admin-nya juga sama.
+// se-math numpang auth (auth.users) coaching-math, tapi role/user-nya
+// sendiri di `se_profile`. User yang login tapi belum punya baris
+// se_profile = `isMember` false -> nggak boleh masuk app.
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   // Sudah selesai cek session awal? (kalau Supabase mati, nggak ada yang dicek)
@@ -47,7 +48,7 @@ export function AuthProvider({ children }) {
 
     let alive = true;
     supabase
-      .from("coaching_profiles")
+      .from("se_profile")
       .select("id, email, first_name, last_name, role")
       .eq("id", userId)
       .maybeSingle()
@@ -63,17 +64,18 @@ export function AuthProvider({ children }) {
     };
   }, [userId, refreshTick]);
 
-  // Profile-nya sudah nyambung sama user yang sekarang?
-  const profileReady = userId !== null && profileUserId === userId;
+  // Fetch profile-nya sudah kelar buat user yang sekarang?
+  const profileFetched = userId !== null && profileUserId === userId;
+  const activeProfile = profileFetched ? profile : null;
 
-  const role = profileReady ? profile?.role : null;
   const value = {
     session,
-    profile: profileReady ? profile : null,
+    profile: activeProfile,
     loading:
-      hasSupabase && (!sessionChecked || (userId !== null && !profileReady)),
-    isAdmin: role === "admin" || role === "super_admin",
-    isSuperAdmin: role === "super_admin",
+      hasSupabase && (!sessionChecked || (userId !== null && !profileFetched)),
+    // Login + punya baris se_profile.
+    isMember: Boolean(activeProfile),
+    isAdmin: activeProfile?.role === "admin",
     refreshProfile,
   };
 

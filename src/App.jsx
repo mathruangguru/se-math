@@ -7,6 +7,7 @@ import DashboardPage from "./pages/DashboardPage";
 import TaskPage from "./pages/TaskPage";
 import HyperlistPage from "./pages/HyperlistPage";
 import HyperlistAdminPage from "./pages/admin/HyperlistAdminPage";
+import UsersAdminPage from "./pages/admin/UsersAdminPage";
 
 const App = () => {
   return (
@@ -22,6 +23,7 @@ const App = () => {
 
           <Route element={<RequireAdmin />}>
             <Route path="/admin/hyperlist" element={<HyperlistAdminPage />} />
+            <Route path="/admin/users" element={<UsersAdminPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

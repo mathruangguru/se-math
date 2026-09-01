@@ -4,6 +4,7 @@ import {
   ListChecks,
   ListTree,
   Shield,
+  Users,
   LogOut,
   X,
 } from "lucide-react";
@@ -16,6 +17,11 @@ const mainNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/task", label: "Task", icon: ListChecks },
   { to: "/hyperlist", label: "Hyperlist", icon: ListTree },
+];
+
+const adminNav = [
+  { to: "/admin/hyperlist", label: "Kelola Hyperlist", icon: Shield },
+  { to: "/admin/users", label: "Pengguna", icon: Users },
 ];
 
 function navItemClass({ isActive }) {
@@ -86,22 +92,30 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
         ))}
 
         {isAdmin && (
-          <NavLink
-            to="/admin/hyperlist"
-            onClick={onClose}
-            className={navItemClass}
-          >
-            {({ isActive }) => (
-              <>
-                <Shield
-                  size={18}
-                  strokeWidth={isActive ? 2.4 : 2}
-                  className={isActive ? "text-white" : "text-zinc-400"}
-                />
-                Admin
-              </>
-            )}
-          </NavLink>
+          <>
+            <p className="mt-4 px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+              Admin
+            </p>
+            {adminNav.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={onClose}
+                className={navItemClass}
+              >
+                {({ isActive }) => (
+                  <>
+                    <Icon
+                      size={18}
+                      strokeWidth={isActive ? 2.4 : 2}
+                      className={isActive ? "text-white" : "text-zinc-400"}
+                    />
+                    {label}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </>
         )}
       </nav>
 
