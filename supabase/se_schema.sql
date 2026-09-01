@@ -383,6 +383,45 @@ end;
 $$;
 grant execute on function public.se_subtask_set_assignees(uuid, uuid[]) to authenticated;
 
+-- ── se_joke: Jokes Corner (flashcard tebak-tebakan) ────────────────
+-- front = tebakan, back = jawaban. Semua member boleh nyumbang; edit /
+-- hapus punya sendiri, admin boleh hapus/edit punya siapa aja.
+
+create table if not exists public.se_joke (
+  id         uuid primary key default gen_random_uuid(),
+  front      text not null default '',
+  back       text not null default '',
+  created_by uuid references public.se_profile (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+create index if not exists se_joke_created_by_idx on public.se_joke (created_by);
+
+alter table public.se_joke enable row level security;
+
+grant select, insert, update, delete on public.se_joke to authenticated;
+grant all on public.se_joke to service_role;
+
+drop policy if exists "se_joke read" on public.se_joke;
+create policy "se_joke read"
+  on public.se_joke for select using (auth.uid() is not null);
+
+drop policy if exists "se_joke insert own" on public.se_joke;
+create policy "se_joke insert own"
+  on public.se_joke for insert
+  with check (public.se_is_member() and created_by = auth.uid());
+
+drop policy if exists "se_joke update own or admin" on public.se_joke;
+create policy "se_joke update own or admin"
+  on public.se_joke for update
+  using (created_by = auth.uid() or public.se_is_admin())
+  with check (created_by = auth.uid() or public.se_is_admin());
+
+drop policy if exists "se_joke delete own or admin" on public.se_joke;
+create policy "se_joke delete own or admin"
+  on public.se_joke for delete
+  using (created_by = auth.uid() or public.se_is_admin());
+
 -- ── Bootstrap admin pertama ─────────────────────────────────────────
 -- User-nya harus sudah ada di auth.users (pernah login coaching-math, atau
 -- dibuat lewat Authentication -> Users -> Add user). Ganti email, uncomment,

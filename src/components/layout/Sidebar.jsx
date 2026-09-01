@@ -4,6 +4,7 @@ import {
   ListChecks,
   ListTree,
   Link2,
+  Laugh,
   Shield,
   Users,
   LogOut,
@@ -19,6 +20,7 @@ const mainNav = [
   { to: "/task", label: "Task", icon: ListChecks },
   { to: "/hyperlist", label: "Hyperlist", icon: ListTree },
   { to: "/link", label: "Link", icon: Link2 },
+  { to: "/jokes", label: "Jokes Corner", icon: Laugh },
 ];
 
 const adminNav = [

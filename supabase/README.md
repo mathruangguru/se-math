@@ -15,6 +15,9 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
      member se-math bisa saling lihat (buat assignee).
    - `se_hyperlist` + RLS (baca publik, tulis `se_is_admin()`)
    - `se_link` + RLS (baca publik, tulis `se_is_admin()`)
+   - `se_joke` + RLS — Jokes Corner. Baca semua yang login; tiap member
+     nyumbang joke sendiri (edit/hapus punya sendiri), admin bisa edit/hapus
+     punya siapa aja. Murni policy, tanpa RPC.
    - `se_task` + `se_subtask` + `se_subtask_assignee` (assignee per-subtask,
      boleh > 1 orang) + RLS (baca user login, tulis `se_is_admin()`) +
      `se_task_set_status(id, status)` / `se_subtask_set_done(id, done)` /
@@ -55,7 +58,7 @@ coaching-math — se-math nggak bikin akun auth baru). Bisa set role
 hapus/turunkan role akun sendiri (trigger `se_profile_guard_self`).
 
 - User login tapi belum ada di `se_profile` → layar "Akun belum terdaftar".
-- `member` = bisa buka Dashboard / Task / Hyperlist / Link.
+- `member` = bisa buka Dashboard / Task / Hyperlist / Link / Jokes Corner.
 - `admin` = + `/admin/hyperlist`, `/admin/link` & `/admin/users`.
 
 ## Isi data Hyperlist — `/admin/hyperlist`
@@ -86,16 +89,24 @@ dari assignee semua subtask-nya (dihitung di klien).
 **Tambah link** (modal): judul + URL (wajib), deskripsi, kategori / grup.
 Menu **Link** buat semua user login mengelompokkan link per kategori.
 
+## Jokes Corner — `/jokes`
+
+Flashcard tebak-tebakan: **depan** = tebakan, **belakang** = jawaban (klik
+kartu buat balik). Grid + search + tombol **Acak** yang nyorot satu kartu
+random. Semua member boleh **Tambah joke**; edit/hapus joke **punya
+sendiri** (admin: punya siapa aja). Gak ada halaman admin terpisah —
+kelolanya inline di kartu.
+
 ## Isi
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_task` / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_joke` + `se_task` / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 (list/create/update/delete/bulkCreate), `src/lib/links.js`
-(list/create/update/delete), `src/lib/tasks.js`
-(task + subtask + subtask-assignee: list/create/update/delete +
+(list/create/update/delete), `src/lib/jokes.js` (list/create/update/delete),
+`src/lib/tasks.js` (task + subtask + subtask-assignee: list/create/update/delete +
 `setTaskStatus` / `setSubtaskDone` / `setSubtaskAssignees` rpc),
 `src/lib/people.js` (list orang buat assignee), `src/lib/members.js`
 (list/add/setRole/remove), `src/lib/auth.js` +
