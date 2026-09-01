@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import Skeleton from "../../components/ui/Skeleton";
 import {
   listHyperlist,
@@ -19,6 +27,7 @@ export default function HyperlistAdminPage() {
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("loading"); // loading | error | ready
   const [q, setQ] = useState("");
+  const [dupOnly, setDupOnly] = useState(false);
   const [rowBusyId, setRowBusyId] = useState(null);
   const [msg, setMsg] = useState(null); // { ok, text }
 
@@ -62,16 +71,31 @@ export default function HyperlistAdminPage() {
     };
   }, []);
 
+  // kode -> jumlah, cuma yang muncul > 1x.
+  const dup = useMemo(() => {
+    const count = new Map();
+    for (const r of rows) {
+      const k = (r.kode ?? "").trim();
+      if (k) count.set(k, (count.get(k) ?? 0) + 1);
+    }
+    const kodes = new Map([...count].filter(([, n]) => n > 1));
+    let baris = 0;
+    for (const n of kodes.values()) baris += n;
+    return { kodes, baris };
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter(
-      (r) =>
+    return rows.filter((r) => {
+      if (dupOnly && !dup.kodes.has((r.kode ?? "").trim())) return false;
+      if (!needle) return true;
+      return (
         r.kode.toLowerCase().includes(needle) ||
         r.topik.toLowerCase().includes(needle) ||
         r.subtopik.toLowerCase().includes(needle)
-    );
-  }, [rows, q]);
+      );
+    });
+  }, [rows, q, dupOnly, dup]);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -357,10 +381,34 @@ export default function HyperlistAdminPage() {
         </p>
       ) : (
         <>
-          <p className="text-xs text-zinc-400">
-            {filtered.length.toLocaleString("id")} dari{" "}
-            {rows.length.toLocaleString("id")} materi
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+            <span className="text-zinc-400">
+              {filtered.length.toLocaleString("id")} dari{" "}
+              {rows.length.toLocaleString("id")} materi
+            </span>
+            {dup.kodes.size > 0 ? (
+              <button
+                onClick={() => setDupOnly((v) => !v)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold transition-colors ${
+                  dupOnly
+                    ? "border-amber-300 bg-amber-100 text-amber-800"
+                    : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                }`}
+                title={[...dup.kodes.entries()]
+                  .map(([k, n]) => `${k} ×${n}`)
+                  .join("\n")}
+              >
+                <AlertTriangle size={12} />
+                {dup.kodes.size.toLocaleString("id")} kode kembar ·{" "}
+                {dup.baris.toLocaleString("id")} baris
+                {dupOnly ? " — tutup" : ""}
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">
+                <Check size={12} /> Nggak ada kode kembar
+              </span>
+            )}
+          </div>
           <div className="scroll-slim overflow-x-auto rounded-2xl border border-zinc-200/80 bg-white">
             <table className="w-full min-w-[760px] border-collapse text-left">
               <thead>
@@ -380,6 +428,11 @@ export default function HyperlistAdminPage() {
                   >
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-500">
                       {r.kode}
+                      {dup.kodes.has((r.kode ?? "").trim()) && (
+                        <span className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 font-sans text-[10px] font-semibold text-amber-700">
+                          ×{dup.kodes.get((r.kode ?? "").trim())}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-zinc-600">
                       {r.topik}

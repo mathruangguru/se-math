@@ -20,14 +20,14 @@ function clean(row) {
   };
 }
 
-// Ambil semua baris se_hyperlist (lewati batas 1000 per request).
+// Ambil semua baris se_hyperlist, urut `kode` ascending (lewati batas 1000
+// per request). `id` jadi tiebreaker biar paginasi stabil untuk kode kembar.
 async function selectAll(cols) {
   const out = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase
       .from("se_hyperlist")
       .select(cols)
-      .order("topik")
       .order("kode")
       .order("id")
       .range(from, from + PAGE - 1);
@@ -60,7 +60,9 @@ export async function listHyperlist() {
     const res = await fetch(`${import.meta.env.BASE_URL}hyperlist.tsv`);
     if (!res.ok) throw new Error(`hyperlist.tsv: ${res.status}`);
     const text = await res.text();
-    return parseTsvRows(text).map((r, i) => ({ id: `tsv-${i}`, ...r }));
+    return parseTsvRows(text)
+      .map((r, i) => ({ id: `tsv-${i}`, ...r }))
+      .sort((a, b) => a.kode.localeCompare(b.kode));
   }
   return selectAll(HL_COLS);
 }
