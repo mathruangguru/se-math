@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   HelpCircle,
   Lightbulb,
@@ -19,8 +19,9 @@ const emptyForm = { id: null, front: "", back: "" };
 const fieldCls =
   "mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-brand-500";
 
-function FlipCard({ front, back, flipped, onToggle, footer, actions, big }) {
-  const textSize = big ? "text-base" : "text-sm";
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function FlipCard({ front, back, flipped, onToggle, footer, actions }) {
   return (
     <div
       role="button"
@@ -33,9 +34,7 @@ function FlipCard({ front, back, flipped, onToggle, footer, actions, big }) {
           onToggle();
         }
       }}
-      className={`group/card relative w-full cursor-pointer select-none [perspective:1200px] ${
-        big ? "h-56" : "h-44"
-      }`}
+      className="group/card relative h-44 w-full cursor-pointer select-none [perspective:1200px]"
     >
       <div
         className={`relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d] ${
@@ -50,9 +49,7 @@ function FlipCard({ front, back, flipped, onToggle, footer, actions, big }) {
             </span>
             {actions}
           </div>
-          <p
-            className={`scroll-slim flex flex-1 items-center overflow-y-auto ${textSize} font-medium leading-snug text-zinc-900`}
-          >
+          <p className="scroll-slim flex flex-1 items-center overflow-y-auto text-sm font-medium leading-snug text-zinc-900">
             {front}
           </p>
           <div className="flex items-center justify-between text-[10px] text-zinc-400">
@@ -66,9 +63,7 @@ function FlipCard({ front, back, flipped, onToggle, footer, actions, big }) {
           <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-brand-500">
             <Lightbulb size={12} /> Jawaban
           </span>
-          <p
-            className={`scroll-slim flex flex-1 items-center overflow-y-auto ${textSize} font-medium leading-snug text-brand-900`}
-          >
+          <p className="scroll-slim flex flex-1 items-center overflow-y-auto text-sm font-medium leading-snug text-brand-900">
             {back}
           </p>
         </div>
@@ -91,6 +86,8 @@ export default function JokesPage() {
   const [flipped, setFlipped] = useState(() => new Set());
   const [spotId, setSpotId] = useState(null);
   const [spotFlipped, setSpotFlipped] = useState(false);
+  const [shuffling, setShuffling] = useState(false);
+  const shuffleToken = useRef(0);
 
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
@@ -149,11 +146,30 @@ export default function JokesPage() {
       return next;
     });
 
-  const handleShuffle = () => {
-    if (filtered.length === 0) return;
-    const pick = filtered[Math.floor(Math.random() * filtered.length)];
-    setSpotId(pick.id);
+  const handleShuffle = async () => {
+    if (shuffling || filtered.length === 0) return;
+    const pool = filtered;
     setSpotFlipped(false);
+    if (pool.length === 1) {
+      setSpotId(pool[0].id);
+      return;
+    }
+    const token = (shuffleToken.current += 1);
+    setShuffling(true);
+    const finalPick = pool[Math.floor(Math.random() * pool.length)];
+    const steps = 14;
+    for (let i = 0; i < steps; i += 1) {
+      if (shuffleToken.current !== token) return;
+      const last = i === steps - 1;
+      const pick = last
+        ? finalPick
+        : pool[Math.floor(Math.random() * pool.length)];
+      setSpotId(pick.id);
+      setSpotFlipped(false);
+      // makin ke akhir makin lambat (efek ngerem)
+      await sleep(45 + Math.round(150 * (i / (steps - 1)) ** 2));
+    }
+    if (shuffleToken.current === token) setShuffling(false);
   };
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
@@ -284,10 +300,11 @@ export default function JokesPage() {
         </div>
         <button
           onClick={handleShuffle}
-          disabled={filtered.length === 0}
+          disabled={filtered.length === 0 || shuffling}
           className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-40"
         >
-          <Shuffle size={14} /> Acak
+          <Shuffle size={14} className={shuffling ? "animate-spin" : ""} />
+          {shuffling ? "Ngacak…" : "Acak"}
         </button>
       </div>
 
@@ -296,7 +313,7 @@ export default function JokesPage() {
         <div className="rounded-2xl border border-dashed border-brand-200 bg-brand-50/40 p-3">
           <div className="mb-2 flex items-center justify-between px-1">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-brand-500">
-              Kartu acak
+              {shuffling ? "Ngacak…" : "Kartu acak"}
             </span>
             <button
               onClick={() => setSpotId(null)}
@@ -306,21 +323,29 @@ export default function JokesPage() {
               <X size={14} />
             </button>
           </div>
-          <FlipCard
-            big
-            front={spotJoke.front}
-            back={spotJoke.back}
-            flipped={spotFlipped}
-            onToggle={() => setSpotFlipped((v) => !v)}
-            footer={contributorLabel(spotJoke)}
-            actions={cardActions(spotJoke)}
-          />
-          <button
-            onClick={handleShuffle}
-            className="mt-2 inline-flex items-center gap-1.5 px-1 text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
+          <div
+            key={spotId}
+            className={`mx-auto max-w-[340px] ${shuffling ? "joke-flick" : ""}`}
           >
-            <Shuffle size={13} /> Acak lagi
-          </button>
+            <FlipCard
+              front={spotJoke.front}
+              back={spotJoke.back}
+              flipped={spotFlipped}
+              onToggle={() => setSpotFlipped((v) => !v)}
+              footer={contributorLabel(spotJoke)}
+              actions={cardActions(spotJoke)}
+            />
+          </div>
+          <div className="mt-2 flex justify-center">
+            <button
+              onClick={handleShuffle}
+              disabled={shuffling}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700 disabled:opacity-40"
+            >
+              <Shuffle size={13} className={shuffling ? "animate-spin" : ""} />
+              {shuffling ? "Ngacak…" : "Acak lagi"}
+            </button>
+          </div>
         </div>
       )}
 
