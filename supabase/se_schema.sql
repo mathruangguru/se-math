@@ -207,7 +207,8 @@ create policy "se_link write admin"
   using (public.se_is_admin()) with check (public.se_is_admin());
 
 -- ── se_task: board tugas bersama ────────────────────────────────────
--- Semua user login lihat & bisa ubah STATUS + ASSIGNEE. CRUD penuh admin.
+-- Semua user login lihat & bisa ubah STATUS. CRUD penuh admin. Assignee
+-- BUKAN di sini — dia per-subtask (se_subtask_assignee), direkap ke task.
 
 create table if not exists public.se_task (
   id          uuid primary key default gen_random_uuid(),
@@ -218,16 +219,16 @@ create table if not exists public.se_task (
   status      text not null default 'todo'
               check (status in ('todo', 'doing', 'done')),
   deadline    date,
-  assignee_id uuid references public.se_profile (id) on delete set null,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz
 );
--- Kolom baru buat tabel yang sudah terlanjur dibuat sebelum fitur assignee.
-alter table public.se_task
-  add column if not exists assignee_id uuid
-  references public.se_profile (id) on delete set null;
-create index if not exists se_task_status_idx   on public.se_task (status);
-create index if not exists se_task_assignee_idx on public.se_task (assignee_id);
+create index if not exists se_task_status_idx on public.se_task (status);
+
+-- Dulu ada se_task.assignee_id (assignee per-task). Sekarang assignee
+-- per-subtask & bisa banyak orang, jadi kolom + RPC lama dibuang.
+drop function if exists public.se_task_set_assignee(uuid, uuid);
+drop index if exists public.se_task_assignee_idx;
+alter table public.se_task drop column if exists assignee_id;
 
 alter table public.se_task enable row level security;
 
@@ -269,35 +270,6 @@ begin
 end;
 $$;
 grant execute on function public.se_task_set_status(uuid, text) to authenticated;
-
--- Member (bukan admin) boleh ubah assignee — lewat RPC ini. p_assignee
--- NULL = lepas assignee. Assignee wajib member se-math (punya se_profile).
-create or replace function public.se_task_set_assignee(p_id uuid, p_assignee uuid)
-returns public.se_task
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  v_row public.se_task%rowtype;
-begin
-  if not exists (select 1 from public.se_profile where id = auth.uid()) then
-    raise exception 'Bukan member.' using errcode = '42501';
-  end if;
-  if p_assignee is not null
-     and not exists (select 1 from public.se_profile where id = p_assignee) then
-    raise exception 'Assignee harus member se-math.';
-  end if;
-
-  update public.se_task
-     set assignee_id = p_assignee, updated_at = now()
-   where id = p_id
-   returning * into v_row;
-
-  return v_row;
-end;
-$$;
-grant execute on function public.se_task_set_assignee(uuid, uuid) to authenticated;
 
 -- ── se_subtask: checklist di dalam sebuah task ──────────────────────
 -- Admin nambah/ubah/hapus; semua member boleh centang (lewat RPC).
@@ -346,6 +318,70 @@ begin
 end;
 $$;
 grant execute on function public.se_subtask_set_done(uuid, boolean) to authenticated;
+
+-- ── se_subtask_assignee: siapa ngerjain subtask (bisa > 1 orang) ────
+-- Assignee task = rekap union dari semua assignee subtask-nya (di klien).
+
+create table if not exists public.se_subtask_assignee (
+  subtask_id uuid not null references public.se_subtask (id) on delete cascade,
+  person_id  uuid not null references public.se_profile (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (subtask_id, person_id)
+);
+create index if not exists se_subtask_assignee_person_idx
+  on public.se_subtask_assignee (person_id);
+
+alter table public.se_subtask_assignee enable row level security;
+
+grant select, insert, update, delete on public.se_subtask_assignee to authenticated;
+grant all on public.se_subtask_assignee to service_role;
+
+drop policy if exists "se_subtask_assignee read" on public.se_subtask_assignee;
+create policy "se_subtask_assignee read"
+  on public.se_subtask_assignee for select using (auth.uid() is not null);
+
+drop policy if exists "se_subtask_assignee write admin" on public.se_subtask_assignee;
+create policy "se_subtask_assignee write admin"
+  on public.se_subtask_assignee for all
+  using (public.se_is_admin()) with check (public.se_is_admin());
+
+-- Member biasa boleh set daftar assignee subtask — lewat RPC ini.
+-- p_person_ids = daftar FINAL (replace); yang nggak ada di situ dilepas.
+-- null / non-member dibuang. Balikin daftar person_id yang kepasang.
+create or replace function public.se_subtask_set_assignees(
+  p_subtask_id uuid,
+  p_person_ids uuid[]
+)
+returns uuid[]
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_ids uuid[];
+begin
+  if not exists (select 1 from public.se_profile where id = auth.uid()) then
+    raise exception 'Bukan member.' using errcode = '42501';
+  end if;
+
+  select coalesce(array_agg(distinct p), '{}')
+    into v_ids
+  from unnest(coalesce(p_person_ids, '{}'::uuid[])) as p
+  where p is not null
+    and exists (select 1 from public.se_profile where id = p);
+
+  delete from public.se_subtask_assignee
+   where subtask_id = p_subtask_id
+     and not (person_id = any (v_ids));
+
+  insert into public.se_subtask_assignee (subtask_id, person_id)
+  select p_subtask_id, p from unnest(v_ids) as p
+  on conflict do nothing;
+
+  return v_ids;
+end;
+$$;
+grant execute on function public.se_subtask_set_assignees(uuid, uuid[]) to authenticated;
 
 -- ── Bootstrap admin pertama ─────────────────────────────────────────
 -- User-nya harus sudah ada di auth.users (pernah login coaching-math, atau

@@ -54,3 +54,29 @@ export default function Avatar({ name = "", id = "", size = 24, title }) {
     </span>
   );
 }
+
+// Tumpukan avatar yang saling tumpang tindih + "+N" kalau kelebihan.
+// people: [{ id, name }].
+export function AvatarGroup({ people = [], size = 22, max = 4 }) {
+  if (people.length === 0) return null;
+  const shown = people.slice(0, max);
+  const rest = people.length - shown.length;
+  return (
+    <span className="inline-flex items-center" title={people.map((p) => p.name).join(", ")}>
+      {shown.map((p, i) => (
+        <span
+          key={p.id ?? i}
+          className="rounded-full ring-2 ring-white"
+          style={{ marginLeft: i === 0 ? 0 : -(size * 0.3) }}
+        >
+          <Avatar name={p.name} id={p.id ?? p.name} size={size} />
+        </span>
+      ))}
+      {rest > 0 && (
+        <span className="ml-1 text-[11px] font-semibold text-zinc-400">
+          +{rest}
+        </span>
+      )}
+    </span>
+  );
+}
