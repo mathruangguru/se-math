@@ -159,6 +159,35 @@ create policy "se_hyperlist write admin"
   on public.se_hyperlist for all
   using (public.se_is_admin()) with check (public.se_is_admin());
 
+-- ── se_link: kumpulan link ─────────────────────────────────────────
+-- Semua user login lihat & klik; tambah/edit/hapus admin saja.
+
+create table if not exists public.se_link (
+  id          uuid primary key default gen_random_uuid(),
+  title       text not null default '',
+  url         text not null default '',
+  description text not null default '',
+  category    text not null default '',
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz
+);
+create index if not exists se_link_category_idx on public.se_link (category);
+
+alter table public.se_link enable row level security;
+
+grant select on public.se_link to anon, authenticated;
+grant insert, update, delete on public.se_link to authenticated;
+grant all on public.se_link to service_role;
+
+drop policy if exists "se_link read" on public.se_link;
+create policy "se_link read"
+  on public.se_link for select using (true);
+
+drop policy if exists "se_link write admin" on public.se_link;
+create policy "se_link write admin"
+  on public.se_link for all
+  using (public.se_is_admin()) with check (public.se_is_admin());
+
 -- ── Bootstrap admin pertama ─────────────────────────────────────────
 -- User-nya harus sudah ada di auth.users (pernah login coaching-math, atau
 -- dibuat lewat Authentication -> Users -> Add user). Ganti email, uncomment,

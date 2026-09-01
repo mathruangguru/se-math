@@ -12,6 +12,7 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
    - `se_profile` (`role`: `member` | `admin`) + `se_is_admin()` +
      `se_add_member(email, role)` + trigger `se_profile_guard_self`
    - `se_hyperlist` + RLS (baca publik, tulis `se_is_admin()`)
+   - `se_link` + RLS (baca publik, tulis `se_is_admin()`)
 2. **Bikin admin pertama** — di `se_schema.sql` bagian bawah, uncomment
    blok bootstrap, ganti email (user harus sudah pernah login
    coaching-math / dibuat di Authentication → Users), Run.
@@ -45,8 +46,8 @@ coaching-math — se-math nggak bikin akun auth baru). Bisa set role
 hapus/turunkan role akun sendiri (trigger `se_profile_guard_self`).
 
 - User login tapi belum ada di `se_profile` → layar "Akun belum terdaftar".
-- `member` = bisa buka Dashboard / Task / Hyperlist.
-- `admin` = + `/admin/hyperlist` & `/admin/users`.
+- `member` = bisa buka Dashboard / Task / Hyperlist / Link.
+- `admin` = + `/admin/hyperlist`, `/admin/link` & `/admin/users`.
 
 ## Isi data Hyperlist — `/admin/hyperlist`
 
@@ -54,13 +55,19 @@ hapus/turunkan role akun sendiri (trigger `se_profile_guard_self`).
 baris per materi) → centang **Ganti semua isi tabel** → **Impor**. Format
 sama persis dengan `public/hyperlist.tsv`.
 
+## Isi data Link — `/admin/link`
+
+**Tambah link** (modal): judul + URL (wajib), deskripsi, kategori / grup.
+Menu **Link** buat semua user login mengelompokkan link per kategori.
+
 ## Isi
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` + `se_add_member()` + guard trigger + `se_hyperlist` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
-(list/create/update/delete/bulkCreate), `src/lib/members.js`
+(list/create/update/delete/bulkCreate), `src/lib/links.js`
+(list/create/update/delete), `src/lib/members.js`
 (list/add/setRole/remove), `src/lib/auth.js` +
 `src/context/AuthProvider.jsx` (session, `se_profile`, role).
