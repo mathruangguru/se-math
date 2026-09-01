@@ -14,7 +14,7 @@ import Skeleton from "../components/ui/Skeleton";
 import Pagination from "../components/ui/Pagination";
 import Modal from "../components/ui/Modal";
 import SegmentedControl from "../components/ui/SegmentedControl";
-import Avatar from "../components/ui/Avatar";
+import { AvatarGroup } from "../components/ui/Avatar";
 import SubtaskChecklist from "../components/task/SubtaskChecklist";
 import { useAuth } from "../context/auth-context";
 import { shortDate, deadlineTone, deadlineLabel } from "../lib/date";
@@ -25,11 +25,12 @@ import {
   updateTask,
   deleteTask,
   setTaskStatus,
-  setTaskAssignee,
   listSubtasks,
   createSubtask,
   deleteSubtask,
   setSubtaskDone,
+  listSubtaskAssignees,
+  setSubtaskAssignees,
 } from "../lib/tasks";
 
 const VIEW_KEY = "se-task-view";
@@ -55,7 +56,6 @@ const emptyForm = {
   priority: "P2",
   status: "todo",
   deadline: "",
-  assignee_id: "",
 };
 const fieldCls =
   "mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-brand-500";
@@ -136,6 +136,7 @@ export default function TaskPage() {
 
   const [rows, setRows] = useState([]);
   const [subs, setSubs] = useState([]); // flat se_subtask rows
+  const [subAssignees, setSubAssignees] = useState([]); // { subtask_id, person_id }
   const [people, setPeople] = useState([]);
   const [status, setStatus] = useState("loading"); // loading | error | ready
   const [msg, setMsg] = useState(null); // { ok, text }
@@ -163,13 +164,15 @@ export default function TaskPage() {
 
   async function fetchTasks() {
     try {
-      const [t, s, p] = await Promise.all([
+      const [t, s, sa, p] = await Promise.all([
         listTasks(),
         listSubtasks(),
+        listSubtaskAssignees().catch(() => []),
         listPeople().catch(() => []),
       ]);
       setRows(t);
       setSubs(s);
+      setSubAssignees(sa);
       setPeople(p);
       setStatus("ready");
     } catch (err) {
@@ -180,11 +183,17 @@ export default function TaskPage() {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([listTasks(), listSubtasks(), listPeople().catch(() => [])])
-      .then(([t, s, p]) => {
+    Promise.all([
+      listTasks(),
+      listSubtasks(),
+      listSubtaskAssignees().catch(() => []),
+      listPeople().catch(() => []),
+    ])
+      .then(([t, s, sa, p]) => {
         if (!alive) return;
         setRows(t);
         setSubs(s);
+        setSubAssignees(sa);
         setPeople(p);
         setStatus("ready");
       })
@@ -219,6 +228,28 @@ export default function TaskPage() {
     return m;
   }, [subs]);
 
+  const assigneesBySub = useMemo(() => {
+    const m = new Map();
+    for (const r of subAssignees) {
+      if (!m.has(r.subtask_id)) m.set(r.subtask_id, []);
+      m.get(r.subtask_id).push(r.person_id);
+    }
+    return m;
+  }, [subAssignees]);
+
+  // Rekap assignee per task = union assignee semua subtask-nya.
+  const rollupByTask = useMemo(() => {
+    const m = new Map();
+    for (const [taskId, list] of subByTask) {
+      const set = new Set();
+      for (const s of list) {
+        for (const pid of assigneesBySub.get(s.id) ?? []) set.add(pid);
+      }
+      if (set.size) m.set(taskId, [...set]);
+    }
+    return m;
+  }, [subByTask, assigneesBySub]);
+
   const handleSubToggle = async (id, done) => {
     setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, done } : s)));
     try {
@@ -241,37 +272,79 @@ export default function TaskPage() {
   };
 
   const handleSubDelete = async (id) => {
-    const keep = subs;
+    const keepSubs = subs;
+    const keepAssignees = subAssignees;
     setSubs((prev) => prev.filter((s) => s.id !== id));
+    setSubAssignees((prev) => prev.filter((r) => r.subtask_id !== id));
     try {
       await deleteSubtask(id);
     } catch (err) {
-      setSubs(keep);
+      setSubs(keepSubs);
+      setSubAssignees(keepAssignees);
       window.alert(`Gagal menghapus subtask: ${err?.message ?? err}`);
     }
   };
 
-  const subChecklist = (t) => (
-    <SubtaskChecklist
-      items={subByTask.get(t.id) ?? []}
-      isAdmin={isAdmin}
-      onToggle={handleSubToggle}
-      onAdd={(title) => handleSubAdd(t.id, title)}
-      onDelete={handleSubDelete}
-    />
-  );
+  const handleSetSubAssignees = async (subtaskId, personIds) => {
+    const keep = subAssignees;
+    setSubAssignees((prev) => [
+      ...prev.filter((r) => r.subtask_id !== subtaskId),
+      ...personIds.map((pid) => ({ subtask_id: subtaskId, person_id: pid })),
+    ]);
+    try {
+      await setSubtaskAssignees(subtaskId, personIds);
+    } catch (err) {
+      setSubAssignees(keep);
+      window.alert(`Gagal ubah assignee: ${err?.message ?? err}`);
+    }
+  };
+
+  const subChecklist = (t) => {
+    const items = (subByTask.get(t.id) ?? []).map((s) => ({
+      ...s,
+      assignees: assigneesBySub.get(s.id) ?? [],
+    }));
+    return (
+      <SubtaskChecklist
+        items={items}
+        people={people}
+        isAdmin={isAdmin}
+        onToggle={handleSubToggle}
+        onAdd={(title) => handleSubAdd(t.id, title)}
+        onDelete={handleSubDelete}
+        onSetAssignees={handleSetSubAssignees}
+      />
+    );
+  };
+
+  const rollupAvatars = (t) => {
+    const ids = rollupByTask.get(t.id) ?? [];
+    if (ids.length === 0)
+      return <span className="text-[11px] text-zinc-300">Belum diassign</span>;
+    return (
+      <AvatarGroup
+        people={ids.map((id) => {
+          const p = personById.get(id);
+          return { id, name: p ? personName(p) : "?" };
+        })}
+        size={22}
+        max={4}
+      />
+    );
+  };
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((t) => {
       if (statusFilter && t.status !== statusFilter) return false;
-      if (assigneeFilter === "__none" && t.assignee_id) return false;
-      if (assigneeFilter === "__me" && t.assignee_id !== myId) return false;
+      const ids = rollupByTask.get(t.id) ?? [];
+      if (assigneeFilter === "__none" && ids.length > 0) return false;
+      if (assigneeFilter === "__me" && !ids.includes(myId)) return false;
       if (
         assigneeFilter &&
         assigneeFilter !== "__none" &&
         assigneeFilter !== "__me" &&
-        t.assignee_id !== assigneeFilter
+        !ids.includes(assigneeFilter)
       )
         return false;
       if (!needle) return true;
@@ -280,7 +353,7 @@ export default function TaskPage() {
         (t.description ?? "").toLowerCase().includes(needle)
       );
     });
-  }, [rows, q, statusFilter, assigneeFilter, myId]);
+  }, [rows, q, statusFilter, assigneeFilter, myId, rollupByTask]);
 
   // Balik ke halaman 1 tiap filter berubah (adjust state saat render).
   const filterKey = `${q} ${statusFilter} ${assigneeFilter}`;
@@ -302,12 +375,7 @@ export default function TaskPage() {
     setShowForm(true);
   };
   const openEdit = (t) => {
-    setForm({
-      ...emptyForm,
-      ...t,
-      deadline: t.deadline ?? "",
-      assignee_id: t.assignee_id ?? "",
-    });
+    setForm({ ...emptyForm, ...t, deadline: t.deadline ?? "" });
     setFormError("");
     setShowForm(true);
   };
@@ -326,7 +394,6 @@ export default function TaskPage() {
       priority: form.priority,
       status: form.status,
       deadline: form.deadline || null,
-      assignee_id: form.assignee_id || null,
     };
     setSaving(true);
     try {
@@ -381,26 +448,6 @@ export default function TaskPage() {
     }
   };
 
-  const handleAssign = async (t, assigneeId) => {
-    const next = assigneeId || null;
-    if (next === (t.assignee_id ?? null)) return;
-    const prev = t.assignee_id ?? null;
-    setRowBusyId(t.id);
-    setRows((r) =>
-      r.map((x) => (x.id === t.id ? { ...x, assignee_id: next } : x))
-    );
-    try {
-      await setTaskAssignee(t.id, next);
-    } catch (err) {
-      setRows((r) =>
-        r.map((x) => (x.id === t.id ? { ...x, assignee_id: prev } : x))
-      );
-      window.alert(`Gagal ganti assignee: ${err?.message ?? err}`);
-    } finally {
-      setRowBusyId(null);
-    }
-  };
-
   // Helper render (dipanggil sebagai fungsi, bukan komponen — biar <select>
   // nggak remount tiap render parent).
   const statusSelect = (t) => (
@@ -419,40 +466,6 @@ export default function TaskPage() {
       ))}
     </select>
   );
-
-  const assigneeControl = (t) => {
-    const person = t.assignee_id ? personById.get(t.assignee_id) : null;
-    const label = person ? personName(person) : "";
-    const mine = t.assignee_id && myId && t.assignee_id === myId;
-    return (
-      <span className="inline-flex items-center gap-1.5">
-        <Avatar name={label} id={t.assignee_id ?? ""} size={22} />
-        <select
-          value={t.assignee_id ?? ""}
-          disabled={rowBusyId === t.id || people.length === 0}
-          onChange={(e) => handleAssign(t, e.target.value)}
-          className="max-w-[136px] truncate rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-700 outline-none transition-colors focus:border-brand-500 disabled:opacity-50"
-        >
-          <option value="">Belum ada</option>
-          {people.map((p) => (
-            <option key={p.id} value={p.id}>
-              {personName(p)}
-            </option>
-          ))}
-        </select>
-        {myId && !mine && (
-          <button
-            type="button"
-            onClick={() => handleAssign(t, myId)}
-            className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-brand-600 transition-colors hover:bg-brand-50"
-            title="Assign ke saya"
-          >
-            ke saya
-          </button>
-        )}
-      </span>
-    );
-  };
 
   const adminActions = (t) =>
     isAdmin && (
@@ -480,8 +493,8 @@ export default function TaskPage() {
       <div>
         <h1 className="text-xl font-bold tracking-tight text-zinc-900">Task</h1>
         <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-          Board tugas bersama — semua bisa ubah status &amp; assignee, admin
-          kelola isinya.
+          Board tugas bersama — status bisa diubah siapa saja, assignee diatur
+          per subtask dan direkap ke task.
         </p>
       </div>
 
@@ -603,21 +616,10 @@ export default function TaskPage() {
               />
             </label>
           </div>
-          <label className="block text-xs font-medium text-zinc-600">
-            Assignee
-            <select
-              value={form.assignee_id}
-              onChange={(e) => set("assignee_id", e.target.value)}
-              className={fieldCls}
-            >
-              <option value="">— Belum ada —</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {personName(p)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <p className="text-[11px] leading-relaxed text-zinc-400">
+            Assignee diatur per subtask (di checklist tiap task), bukan di
+            sini.
+          </p>
 
           {formError && <p className="text-xs text-rose-600">{formError}</p>}
 
@@ -710,7 +712,7 @@ export default function TaskPage() {
                     </p>
                   )}
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    {assigneeControl(t)}
+                    {rollupAvatars(t)}
                     <Deadline task={t} />
                   </div>
                   {subChecklist(t)}
@@ -769,7 +771,7 @@ export default function TaskPage() {
                     <td className="px-4 py-3">
                       <PriorityChip p={t.priority} />
                     </td>
-                    <td className="px-4 py-3">{assigneeControl(t)}</td>
+                    <td className="px-4 py-3">{rollupAvatars(t)}</td>
                     <td className="px-4 py-3">{statusSelect(t)}</td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <Deadline task={t} />
@@ -836,7 +838,7 @@ export default function TaskPage() {
                             {t.description}
                           </p>
                         )}
-                        <div className="mt-2">{assigneeControl(t)}</div>
+                        <div className="mt-2">{rollupAvatars(t)}</div>
                         {subChecklist(t)}
                         <div className="mt-2 flex items-center justify-between">
                           <Deadline task={t} />

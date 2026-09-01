@@ -15,12 +15,13 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
      member se-math bisa saling lihat (buat assignee).
    - `se_hyperlist` + RLS (baca publik, tulis `se_is_admin()`)
    - `se_link` + RLS (baca publik, tulis `se_is_admin()`)
-   - `se_task` (+ kolom `assignee_id`) + `se_subtask` + RLS (baca user login,
-     tulis `se_is_admin()`) + `se_task_set_status(id, status)` /
-     `se_task_set_assignee(id, assignee)` / `se_subtask_set_done(id, done)` —
-     biar member bisa ubah status / assignee / centang subtask doang
-   - Aman di-run ulang tiap ada tabel / kolom baru
-     (`alter table … add column if not exists`).
+   - `se_task` + `se_subtask` + `se_subtask_assignee` (assignee per-subtask,
+     boleh > 1 orang) + RLS (baca user login, tulis `se_is_admin()`) +
+     `se_task_set_status(id, status)` / `se_subtask_set_done(id, done)` /
+     `se_subtask_set_assignees(subtask_id, person_ids[])` — biar member bisa
+     ubah status / centang / atur assignee subtask doang
+   - Aman di-run ulang tiap ada tabel / kolom baru. Re-run juga otomatis
+     buang `se_task.assignee_id` lama (assignee sekarang per-subtask).
 2. **Bikin admin pertama** — di `se_schema.sql` bagian bawah, uncomment
    blok bootstrap, ganti email (user harus sudah pernah login
    coaching-math / dibuat di Authentication → Users), Run.
@@ -66,13 +67,19 @@ sama persis dengan `public/hyperlist.tsv`.
 ## Task — `/task`
 
 Board bersama. Semua user login lihat & bisa ubah **status** (RPC
-`se_task_set_status`) + **assignee** (RPC `se_task_set_assignee`, assignee
-harus member se-math). Tambah / edit / hapus task cuma admin. Tampilan
+`se_task_set_status`). Tambah / edit / hapus task cuma admin. Tampilan
 List / Tabel / Kanban (pilihan disimpan di `localStorage`). Filter per
 status & per orang ("Punya saya" / "Belum ada assignee").
 
 Tiap task punya **subtask** (checklist, tabel `se_subtask`): admin
 nambah/hapus, semua member boleh centang (`se_subtask_set_done`).
+
+**Assignee ada di subtask, bukan task.** Satu subtask boleh di-assign ke
+**lebih dari satu orang** (`se_subtask_assignee`, PK `(subtask_id,
+person_id)`). Semua member boleh atur lewat RPC
+`se_subtask_set_assignees(subtask_id, person_ids[])` (replace penuh; null /
+non-member dibuang). Assignee yang tampil di kartu task = **rekap union**
+dari assignee semua subtask-nya (dihitung di klien).
 
 ## Isi data Link — `/admin/link`
 
@@ -83,12 +90,13 @@ Menu **Link** buat semua user login mengelompokkan link per kategori.
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_task` / `se_subtask` + `se_task_set_status()` / `se_task_set_assignee()` / `se_subtask_set_done()` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_task` / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 (list/create/update/delete/bulkCreate), `src/lib/links.js`
 (list/create/update/delete), `src/lib/tasks.js`
-(list/create/update/delete + `setTaskStatus` / `setTaskAssignee` rpc),
+(task + subtask + subtask-assignee: list/create/update/delete +
+`setTaskStatus` / `setSubtaskDone` / `setSubtaskAssignees` rpc),
 `src/lib/people.js` (list orang buat assignee), `src/lib/members.js`
 (list/add/setRole/remove), `src/lib/auth.js` +
 `src/context/AuthProvider.jsx` (session, `se_profile`, role).

@@ -1,7 +1,6 @@
 import { supabase, hasSupabase } from "./supabase";
 
-const T_COLS =
-  "id, title, description, priority, status, deadline, assignee_id";
+const T_COLS = "id, title, description, priority, status, deadline";
 const PAGE = 1000;
 
 function ensure() {
@@ -15,7 +14,6 @@ function clean(row) {
     priority: row.priority ?? "P2",
     status: row.status ?? "todo",
     deadline: row.deadline ? row.deadline : null,
-    assignee_id: row.assignee_id ? row.assignee_id : null,
   };
 }
 
@@ -82,17 +80,6 @@ export async function setTaskStatus(id, status) {
   return data;
 }
 
-/** Ubah assignee saja — boleh member biasa. assigneeId null = lepas. */
-export async function setTaskAssignee(id, assigneeId) {
-  ensure();
-  const { data, error } = await supabase.rpc("se_task_set_assignee", {
-    p_id: id,
-    p_assignee: assigneeId || null,
-  });
-  if (error) throw error;
-  return data;
-}
-
 // ── Subtask (checklist per task) ────────────────────────────────────
 
 const ST_COLS = "id, task_id, title, done";
@@ -152,4 +139,36 @@ export async function setSubtaskDone(id, done) {
   });
   if (error) throw error;
   return data;
+}
+
+// ── Assignee subtask (bisa > 1 orang; direkap ke task di UI) ────────
+
+/** Semua baris se_subtask_assignee — di-group per subtask_id di UI. */
+export async function listSubtaskAssignees() {
+  ensure();
+  const out = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("se_subtask_assignee")
+      .select("subtask_id, person_id")
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    out.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return out;
+}
+
+/**
+ * Set daftar assignee FINAL sebuah subtask (replace). Boleh member biasa.
+ * Balikin array person_id yang kepasang.
+ */
+export async function setSubtaskAssignees(subtaskId, personIds) {
+  ensure();
+  const { data, error } = await supabase.rpc("se_subtask_set_assignees", {
+    p_subtask_id: subtaskId,
+    p_person_ids: personIds,
+  });
+  if (error) throw error;
+  return data ?? [];
 }
