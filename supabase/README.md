@@ -12,6 +12,7 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
    - `se_profile` (`role`: `member` | `admin`) + `se_is_admin()` +
      `se_add_member(email, role)` + trigger `se_profile_guard_self`
    - `se_hyperlist` + RLS (baca publik, tulis `se_is_admin()`)
+   - `se_link` + RLS (baca publik, tulis `se_is_admin()`)
    - `se_task` + `se_subtask` + RLS (baca user login, tulis `se_is_admin()`) +
      `se_task_set_status(id, status)` / `se_subtask_set_done(id, done)` —
      biar member bisa ubah status / centang subtask doang
@@ -49,8 +50,8 @@ coaching-math — se-math nggak bikin akun auth baru). Bisa set role
 hapus/turunkan role akun sendiri (trigger `se_profile_guard_self`).
 
 - User login tapi belum ada di `se_profile` → layar "Akun belum terdaftar".
-- `member` = bisa buka Dashboard / Task / Hyperlist.
-- `admin` = + `/admin/hyperlist` & `/admin/users`.
+- `member` = bisa buka Dashboard / Task / Hyperlist / Link.
+- `admin` = + `/admin/hyperlist`, `/admin/link` & `/admin/users`.
 
 ## Isi data Hyperlist — `/admin/hyperlist`
 
@@ -67,14 +68,20 @@ List / Tabel / Kanban (pilihan disimpan di `localStorage`).
 Tiap task punya **subtask** (checklist, tabel `se_subtask`): admin
 nambah/hapus, semua member boleh centang (`se_subtask_set_done`).
 
+## Isi data Link — `/admin/link`
+
+**Tambah link** (modal): judul + URL (wajib), deskripsi, kategori / grup.
+Menu **Link** buat semua user login mengelompokkan link per kategori.
+
 ## Isi
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_task` / `se_subtask` + `se_task_set_status()` / `se_subtask_set_done()` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_task` / `se_subtask` + `se_task_set_status()` / `se_subtask_set_done()` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
-(list/create/update/delete/bulkCreate), `src/lib/tasks.js`
+(list/create/update/delete/bulkCreate), `src/lib/links.js`
+(list/create/update/delete), `src/lib/tasks.js`
 (list/create/update/delete + `setTaskStatus` rpc), `src/lib/members.js`
 (list/add/setRole/remove), `src/lib/auth.js` +
 `src/context/AuthProvider.jsx` (session, `se_profile`, role).

@@ -6,7 +6,9 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import TaskPage from "./pages/TaskPage";
 import HyperlistPage from "./pages/HyperlistPage";
+import LinkPage from "./pages/LinkPage";
 import HyperlistAdminPage from "./pages/admin/HyperlistAdminPage";
+import LinkAdminPage from "./pages/admin/LinkAdminPage";
 import UsersAdminPage from "./pages/admin/UsersAdminPage";
 
 const App = () => {
@@ -20,9 +22,11 @@ const App = () => {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/task" element={<TaskPage />} />
           <Route path="/hyperlist" element={<HyperlistPage />} />
+          <Route path="/link" element={<LinkPage />} />
 
           <Route element={<RequireAdmin />}>
             <Route path="/admin/hyperlist" element={<HyperlistAdminPage />} />
+            <Route path="/admin/link" element={<LinkAdminPage />} />
             <Route path="/admin/users" element={<UsersAdminPage />} />
           </Route>
 

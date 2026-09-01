@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   ListChecks,
   ListTree,
+  Link2,
   Shield,
   Users,
   LogOut,
@@ -17,10 +18,12 @@ const mainNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/task", label: "Task", icon: ListChecks },
   { to: "/hyperlist", label: "Hyperlist", icon: ListTree },
+  { to: "/link", label: "Link", icon: Link2 },
 ];
 
 const adminNav = [
   { to: "/admin/hyperlist", label: "Kelola Hyperlist", icon: Shield },
+  { to: "/admin/link", label: "Kelola Link", icon: Link2 },
   { to: "/admin/users", label: "Pengguna", icon: Users },
 ];
 
