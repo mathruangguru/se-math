@@ -25,16 +25,35 @@ export function shortDate(d) {
   });
 }
 
-// Nada deadline buat pewarnaan: "overdue" | "soon" | "ok" | null.
-// null kalau nggak ada deadline atau task sudah selesai. "soon" = <= 3 hari.
-export function deadlineTone(dateStr, status) {
-  if (!dateStr || status === "done") return null;
+// Selisih hari (bulat) dari hari ini ke tanggal target. Negatif = lewat.
+function daysUntil(dateStr) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(dateStr);
   due.setHours(0, 0, 0, 0);
-  const days = Math.round((due - today) / 86400000);
+  return Math.round((due - today) / 86400000);
+}
+
+// Nada deadline buat pewarnaan: "overdue" | "soon" | "ok" | null.
+// null kalau nggak ada deadline atau task sudah selesai. "soon" = <= 3 hari.
+export function deadlineTone(dateStr, status) {
+  if (!dateStr || status === "done") return null;
+  const days = daysUntil(dateStr);
   if (days < 0) return "overdue";
   if (days <= 3) return "soon";
   return "ok";
+}
+
+// Label deadline manusiawi: "Hari ini", "Besok", "3 hr lagi",
+// "Telat 2 hr". Kalau sudah selesai atau jauh (> 6 hari) → tanggal pendek.
+export function deadlineLabel(dateStr, status) {
+  if (!dateStr) return "";
+  if (status === "done") return shortDate(dateStr);
+  const days = daysUntil(dateStr);
+  if (days === 0) return "Hari ini";
+  if (days === 1) return "Besok";
+  if (days === -1) return "Kemarin";
+  if (days < 0) return `Telat ${-days} hr`;
+  if (days <= 6) return `${days} hr lagi`;
+  return shortDate(dateStr);
 }

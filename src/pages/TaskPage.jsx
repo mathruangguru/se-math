@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Columns3,
@@ -13,15 +14,18 @@ import Skeleton from "../components/ui/Skeleton";
 import Pagination from "../components/ui/Pagination";
 import Modal from "../components/ui/Modal";
 import SegmentedControl from "../components/ui/SegmentedControl";
+import Avatar from "../components/ui/Avatar";
 import SubtaskChecklist from "../components/task/SubtaskChecklist";
 import { useAuth } from "../context/auth-context";
-import { shortDate, deadlineTone } from "../lib/date";
+import { shortDate, deadlineTone, deadlineLabel } from "../lib/date";
+import { listPeople, personName } from "../lib/people";
 import {
   listTasks,
   createTask,
   updateTask,
   deleteTask,
   setTaskStatus,
+  setTaskAssignee,
   listSubtasks,
   createSubtask,
   deleteSubtask,
@@ -51,16 +55,36 @@ const emptyForm = {
   priority: "P2",
   status: "todo",
   deadline: "",
+  assignee_id: "",
 };
 const fieldCls =
   "mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-brand-500";
+const filterCls =
+  "h-9 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-brand-500 focus:bg-white";
 
-const PRIO_CLS = {
-  P0: "bg-rose-100 text-rose-700",
-  P1: "bg-brand-100 text-brand-700",
-  P2: "bg-amber-100 text-amber-700",
-  P3: "bg-sky-100 text-sky-700",
-  P4: "bg-zinc-100 text-zinc-600",
+const PRIO_META = {
+  P0: { chip: "bg-rose-100 text-rose-700", bar: "bg-rose-400" },
+  P1: { chip: "bg-brand-100 text-brand-700", bar: "bg-brand-400" },
+  P2: { chip: "bg-amber-100 text-amber-700", bar: "bg-amber-400" },
+  P3: { chip: "bg-sky-100 text-sky-700", bar: "bg-sky-400" },
+  P4: { chip: "bg-zinc-100 text-zinc-600", bar: "bg-zinc-300" },
+};
+const STATUS_META = {
+  todo: {
+    label: "To do",
+    dot: "bg-zinc-400",
+    select: "border-zinc-200 bg-white text-zinc-600",
+  },
+  doing: {
+    label: "Dikerjakan",
+    dot: "bg-sky-500",
+    select: "border-sky-200 bg-sky-50 text-sky-700",
+  },
+  done: {
+    label: "Selesai",
+    dot: "bg-teal-500",
+    select: "border-teal-200 bg-teal-50 text-teal-700",
+  },
 };
 const TONE_CLS = {
   overdue: "text-rose-600",
@@ -72,7 +96,7 @@ function PriorityChip({ p }) {
   return (
     <span
       className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-        PRIO_CLS[p] ?? PRIO_CLS.P2
+        (PRIO_META[p] ?? PRIO_META.P2).chip
       }`}
     >
       {p}
@@ -81,11 +105,17 @@ function PriorityChip({ p }) {
 }
 
 function Deadline({ task }) {
-  if (!task.deadline) return <span className="text-xs text-zinc-300">—</span>;
+  if (!task.deadline) return null;
   const tone = deadlineTone(task.deadline, task.status);
   return (
-    <span className={`text-xs ${TONE_CLS[tone] ?? "text-zinc-500"}`}>
-      {shortDate(task.deadline)}
+    <span
+      className={`inline-flex items-center gap-1 text-xs ${
+        TONE_CLS[tone] ?? "text-zinc-500"
+      }`}
+      title={shortDate(task.deadline)}
+    >
+      <CalendarDays size={12} />
+      {deadlineLabel(task.deadline, task.status)}
     </span>
   );
 }
@@ -101,10 +131,12 @@ function readView() {
 }
 
 export default function TaskPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, profile } = useAuth();
+  const myId = profile?.id ?? null;
 
   const [rows, setRows] = useState([]);
   const [subs, setSubs] = useState([]); // flat se_subtask rows
+  const [people, setPeople] = useState([]);
   const [status, setStatus] = useState("loading"); // loading | error | ready
   const [msg, setMsg] = useState(null); // { ok, text }
   const [rowBusyId, setRowBusyId] = useState(null);
@@ -112,6 +144,7 @@ export default function TaskPage() {
   const [view, setView] = useState(readView);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState("");
   const [page, setPage] = useState(1);
 
   const [form, setForm] = useState(emptyForm);
@@ -130,9 +163,14 @@ export default function TaskPage() {
 
   async function fetchTasks() {
     try {
-      const [t, s] = await Promise.all([listTasks(), listSubtasks()]);
+      const [t, s, p] = await Promise.all([
+        listTasks(),
+        listSubtasks(),
+        listPeople().catch(() => []),
+      ]);
       setRows(t);
       setSubs(s);
+      setPeople(p);
       setStatus("ready");
     } catch (err) {
       console.error("[task] gagal memuat:", err);
@@ -142,11 +180,12 @@ export default function TaskPage() {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([listTasks(), listSubtasks()])
-      .then(([t, s]) => {
+    Promise.all([listTasks(), listSubtasks(), listPeople().catch(() => [])])
+      .then(([t, s, p]) => {
         if (!alive) return;
         setRows(t);
         setSubs(s);
+        setPeople(p);
         setStatus("ready");
       })
       .catch((err) => {
@@ -158,6 +197,18 @@ export default function TaskPage() {
       alive = false;
     };
   }, []);
+
+  const personById = useMemo(() => {
+    const m = new Map();
+    for (const p of people) m.set(p.id, p);
+    return m;
+  }, [people]);
+
+  const counts = useMemo(() => {
+    const c = { todo: 0, doing: 0, done: 0 };
+    for (const t of rows) c[t.status] = (c[t.status] ?? 0) + 1;
+    return c;
+  }, [rows]);
 
   const subByTask = useMemo(() => {
     const m = new Map();
@@ -214,16 +265,25 @@ export default function TaskPage() {
     const needle = q.trim().toLowerCase();
     return rows.filter((t) => {
       if (statusFilter && t.status !== statusFilter) return false;
+      if (assigneeFilter === "__none" && t.assignee_id) return false;
+      if (assigneeFilter === "__me" && t.assignee_id !== myId) return false;
+      if (
+        assigneeFilter &&
+        assigneeFilter !== "__none" &&
+        assigneeFilter !== "__me" &&
+        t.assignee_id !== assigneeFilter
+      )
+        return false;
       if (!needle) return true;
       return (
         t.title.toLowerCase().includes(needle) ||
         (t.description ?? "").toLowerCase().includes(needle)
       );
     });
-  }, [rows, q, statusFilter]);
+  }, [rows, q, statusFilter, assigneeFilter, myId]);
 
   // Balik ke halaman 1 tiap filter berubah (adjust state saat render).
-  const filterKey = `${q} ${statusFilter}`;
+  const filterKey = `${q} ${statusFilter} ${assigneeFilter}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -242,7 +302,12 @@ export default function TaskPage() {
     setShowForm(true);
   };
   const openEdit = (t) => {
-    setForm({ ...emptyForm, ...t, deadline: t.deadline ?? "" });
+    setForm({
+      ...emptyForm,
+      ...t,
+      deadline: t.deadline ?? "",
+      assignee_id: t.assignee_id ?? "",
+    });
     setFormError("");
     setShowForm(true);
   };
@@ -261,6 +326,7 @@ export default function TaskPage() {
       priority: form.priority,
       status: form.status,
       deadline: form.deadline || null,
+      assignee_id: form.assignee_id || null,
     };
     setSaving(true);
     try {
@@ -315,6 +381,26 @@ export default function TaskPage() {
     }
   };
 
+  const handleAssign = async (t, assigneeId) => {
+    const next = assigneeId || null;
+    if (next === (t.assignee_id ?? null)) return;
+    const prev = t.assignee_id ?? null;
+    setRowBusyId(t.id);
+    setRows((r) =>
+      r.map((x) => (x.id === t.id ? { ...x, assignee_id: next } : x))
+    );
+    try {
+      await setTaskAssignee(t.id, next);
+    } catch (err) {
+      setRows((r) =>
+        r.map((x) => (x.id === t.id ? { ...x, assignee_id: prev } : x))
+      );
+      window.alert(`Gagal ganti assignee: ${err?.message ?? err}`);
+    } finally {
+      setRowBusyId(null);
+    }
+  };
+
   // Helper render (dipanggil sebagai fungsi, bukan komponen — biar <select>
   // nggak remount tiap render parent).
   const statusSelect = (t) => (
@@ -322,7 +408,9 @@ export default function TaskPage() {
       value={t.status}
       disabled={rowBusyId === t.id}
       onChange={(e) => handleStatus(t, e.target.value)}
-      className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-700 outline-none focus:border-brand-500 disabled:opacity-50"
+      className={`rounded-lg border px-2 py-1 text-xs font-medium outline-none transition-colors focus:border-brand-500 disabled:opacity-50 ${
+        STATUS_META[t.status]?.select ?? "border-zinc-200 bg-white text-zinc-600"
+      }`}
     >
       {STATUSES.map((s) => (
         <option key={s.value} value={s.value}>
@@ -331,6 +419,40 @@ export default function TaskPage() {
       ))}
     </select>
   );
+
+  const assigneeControl = (t) => {
+    const person = t.assignee_id ? personById.get(t.assignee_id) : null;
+    const label = person ? personName(person) : "";
+    const mine = t.assignee_id && myId && t.assignee_id === myId;
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <Avatar name={label} id={t.assignee_id ?? ""} size={22} />
+        <select
+          value={t.assignee_id ?? ""}
+          disabled={rowBusyId === t.id || people.length === 0}
+          onChange={(e) => handleAssign(t, e.target.value)}
+          className="max-w-[136px] truncate rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-700 outline-none transition-colors focus:border-brand-500 disabled:opacity-50"
+        >
+          <option value="">Belum ada</option>
+          {people.map((p) => (
+            <option key={p.id} value={p.id}>
+              {personName(p)}
+            </option>
+          ))}
+        </select>
+        {myId && !mine && (
+          <button
+            type="button"
+            onClick={() => handleAssign(t, myId)}
+            className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-brand-600 transition-colors hover:bg-brand-50"
+            title="Assign ke saya"
+          >
+            ke saya
+          </button>
+        )}
+      </span>
+    );
+  };
 
   const adminActions = (t) =>
     isAdmin && (
@@ -358,7 +480,8 @@ export default function TaskPage() {
       <div>
         <h1 className="text-xl font-bold tracking-tight text-zinc-900">Task</h1>
         <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-          Board tugas bersama — semua bisa ubah status, admin kelola isinya.
+          Board tugas bersama — semua bisa ubah status &amp; assignee, admin
+          kelola isinya.
         </p>
       </div>
 
@@ -371,18 +494,18 @@ export default function TaskPage() {
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <SegmentedControl options={VIEWS} value={view} onChange={changeView} />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Cari…"
-          className="h-9 flex-1 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-700 outline-none transition-colors placeholder:text-zinc-400 focus:border-brand-500 focus:bg-white sm:max-w-[200px]"
+          className="h-9 flex-1 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-700 outline-none transition-colors placeholder:text-zinc-400 focus:border-brand-500 focus:bg-white sm:max-w-[180px]"
         />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="h-9 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-brand-500 focus:bg-white"
+          className={filterCls}
         >
           <option value="">Semua status</option>
           {STATUSES.map((s) => (
@@ -391,10 +514,26 @@ export default function TaskPage() {
             </option>
           ))}
         </select>
+        <select
+          value={assigneeFilter}
+          onChange={(e) => setAssigneeFilter(e.target.value)}
+          className={filterCls}
+        >
+          <option value="">Semua orang</option>
+          {myId && <option value="__me">Punya saya</option>}
+          <option value="__none">Belum ada assignee</option>
+          {people
+            .filter((p) => p.id !== myId)
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {personName(p)}
+              </option>
+            ))}
+        </select>
         {isAdmin && (
           <button
             onClick={openCreate}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-600"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-600 sm:ml-auto"
           >
             <Plus size={14} strokeWidth={2.6} /> Tambah task
           </button>
@@ -464,6 +603,21 @@ export default function TaskPage() {
               />
             </label>
           </div>
+          <label className="block text-xs font-medium text-zinc-600">
+            Assignee
+            <select
+              value={form.assignee_id}
+              onChange={(e) => set("assignee_id", e.target.value)}
+              className={fieldCls}
+            >
+              <option value="">— Belum ada —</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {personName(p)}
+                </option>
+              ))}
+            </select>
+          </label>
 
           {formError && <p className="text-xs text-rose-600">{formError}</p>}
 
@@ -486,11 +640,34 @@ export default function TaskPage() {
         </form>
       </Modal>
 
+      {/* Ringkasan */}
+      {status === "ready" && rows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-full bg-zinc-900 px-2.5 py-1 font-semibold text-white">
+            {rows.length} task
+          </span>
+          {STATUSES.map((s) => (
+            <span
+              key={s.value}
+              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-2.5 py-1 font-medium text-zinc-600"
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${STATUS_META[s.value].dot}`}
+              />
+              {s.label}
+              <span className="font-semibold text-zinc-900">
+                {counts[s.value]}
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Isi */}
       {status === "loading" ? (
         <div className="flex flex-col gap-2">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full rounded-xl" />
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
         </div>
       ) : status === "error" ? (
@@ -502,36 +679,46 @@ export default function TaskPage() {
           Belum ada task{isAdmin ? ". Tambah satu." : "."}
         </p>
       ) : view === "list" ? (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {filtered.map((t) => (
             <div
               key={t.id}
-              className={`flex items-start gap-3 rounded-xl border border-zinc-200/80 bg-white p-3.5 ${
-                t.status === "done" ? "opacity-60" : ""
+              className={`relative overflow-hidden rounded-xl border border-zinc-200/80 bg-white p-4 pl-5 transition-shadow hover:shadow-sm ${
+                t.status === "done" ? "opacity-70" : ""
               }`}
             >
-              <PriorityChip p={t.priority} />
-              <div className="min-w-0 flex-1">
-                <p
-                  className={`text-sm font-semibold leading-snug text-zinc-900 ${
-                    t.status === "done" ? "line-through" : ""
-                  }`}
-                >
-                  {t.title}
-                </p>
-                {t.description && (
-                  <p className="mt-0.5 line-clamp-2 text-xs text-zinc-500">
-                    {t.description}
-                  </p>
-                )}
-                <div className="mt-1.5 flex items-center gap-2">
-                  <Deadline task={t} />
+              <span
+                className={`absolute inset-y-0 left-0 w-1 ${
+                  (PRIO_META[t.priority] ?? PRIO_META.P2).bar
+                }`}
+              />
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <PriorityChip p={t.priority} />
+                    <p
+                      className={`text-sm font-semibold leading-snug text-zinc-900 ${
+                        t.status === "done" ? "line-through" : ""
+                      }`}
+                    >
+                      {t.title}
+                    </p>
+                  </div>
+                  {t.description && (
+                    <p className="mt-1 line-clamp-2 text-xs text-zinc-500">
+                      {t.description}
+                    </p>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    {assigneeControl(t)}
+                    <Deadline task={t} />
+                  </div>
+                  {subChecklist(t)}
                 </div>
-                {subChecklist(t)}
-              </div>
-              {statusSelect(t)}
-              <div className="flex shrink-0 items-center">
-                {adminActions(t)}
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  {statusSelect(t)}
+                  <div className="flex items-center">{adminActions(t)}</div>
+                </div>
               </div>
             </div>
           ))}
@@ -547,11 +734,12 @@ export default function TaskPage() {
             {filtered.length.toLocaleString("id")} task
           </p>
           <div className="scroll-slim overflow-x-auto rounded-2xl border border-zinc-200/80 bg-white">
-            <table className="w-full min-w-[720px] border-collapse text-left">
+            <table className="w-full min-w-[820px] border-collapse text-left">
               <thead>
                 <tr className="bg-zinc-50 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
                   <th className="px-4 py-3">Judul</th>
                   <th className="px-4 py-3">Prio</th>
+                  <th className="px-4 py-3">Assignee</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Deadline</th>
                   <th className="px-4 py-3" />
@@ -581,9 +769,8 @@ export default function TaskPage() {
                     <td className="px-4 py-3">
                       <PriorityChip p={t.priority} />
                     </td>
-                    <td className="px-4 py-3">
-                      {statusSelect(t)}
-                    </td>
+                    <td className="px-4 py-3">{assigneeControl(t)}</td>
+                    <td className="px-4 py-3">{statusSelect(t)}</td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <Deadline task={t} />
                     </td>
@@ -595,11 +782,7 @@ export default function TaskPage() {
               </tbody>
             </table>
           </div>
-          <Pagination
-            page={safePage}
-            pageCount={pageCount}
-            onChange={setPage}
-          />
+          <Pagination page={safePage} pageCount={pageCount} onChange={setPage} />
         </>
       ) : (
         // Kanban
@@ -609,11 +792,16 @@ export default function TaskPage() {
             return (
               <div
                 key={col.value}
-                className="flex flex-col rounded-2xl border border-zinc-200/80 bg-zinc-50/60"
+                className="flex flex-col rounded-2xl border border-zinc-200/70 bg-zinc-50/70"
               >
-                <div className="flex items-center justify-between px-3 py-2.5 text-xs font-semibold text-zinc-600">
+                <div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold text-zinc-600">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      STATUS_META[col.value].dot
+                    }`}
+                  />
                   {col.label}
-                  <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] text-zinc-400">
+                  <span className="ml-auto rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400">
                     {items.length}
                   </span>
                 </div>
@@ -623,8 +811,13 @@ export default function TaskPage() {
                     return (
                       <div
                         key={t.id}
-                        className="rounded-xl border border-zinc-200/80 bg-white p-3"
+                        className="relative overflow-hidden rounded-xl border border-zinc-200/80 bg-white p-3 pl-3.5"
                       >
+                        <span
+                          className={`absolute inset-y-0 left-0 w-1 ${
+                            (PRIO_META[t.priority] ?? PRIO_META.P2).bar
+                          }`}
+                        />
                         <div className="flex items-start justify-between gap-2">
                           <PriorityChip p={t.priority} />
                           <div className="flex items-center">
@@ -643,6 +836,7 @@ export default function TaskPage() {
                             {t.description}
                           </p>
                         )}
+                        <div className="mt-2">{assigneeControl(t)}</div>
                         {subChecklist(t)}
                         <div className="mt-2 flex items-center justify-between">
                           <Deadline task={t} />

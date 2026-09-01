@@ -39,7 +39,21 @@ as $$
 $$;
 grant execute on function public.se_is_admin() to anon, authenticated;
 
--- RLS se_profile: user baca baris sendiri; admin baca + tulis semua.
+-- Helper: caller punya baris se_profile (member se-math)? SECURITY DEFINER
+-- biar aman dipakai di policy se_profile tanpa rekursi RLS.
+create or replace function public.se_is_member()
+returns boolean
+language sql
+security definer
+set search_path = public, pg_temp
+stable
+as $$
+  select exists (select 1 from public.se_profile where id = auth.uid());
+$$;
+grant execute on function public.se_is_member() to anon, authenticated;
+
+-- RLS se_profile: user baca baris sendiri; sesama member se-math boleh
+-- saling lihat (buat assignee, dsb); admin baca + tulis semua.
 drop policy if exists "se_profile select own" on public.se_profile;
 create policy "se_profile select own"
   on public.se_profile for select using (auth.uid() = id);
@@ -47,6 +61,10 @@ create policy "se_profile select own"
 drop policy if exists "se_profile select admin" on public.se_profile;
 create policy "se_profile select admin"
   on public.se_profile for select using (public.se_is_admin());
+
+drop policy if exists "se_profile select member" on public.se_profile;
+create policy "se_profile select member"
+  on public.se_profile for select using (public.se_is_member());
 
 drop policy if exists "se_profile write admin" on public.se_profile;
 create policy "se_profile write admin"
@@ -189,7 +207,7 @@ create policy "se_link write admin"
   using (public.se_is_admin()) with check (public.se_is_admin());
 
 -- ── se_task: board tugas bersama ────────────────────────────────────
--- Semua user login lihat & bisa ubah STATUS. CRUD penuh admin saja.
+-- Semua user login lihat & bisa ubah STATUS + ASSIGNEE. CRUD penuh admin.
 
 create table if not exists public.se_task (
   id          uuid primary key default gen_random_uuid(),
@@ -200,10 +218,16 @@ create table if not exists public.se_task (
   status      text not null default 'todo'
               check (status in ('todo', 'doing', 'done')),
   deadline    date,
+  assignee_id uuid references public.se_profile (id) on delete set null,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz
 );
-create index if not exists se_task_status_idx on public.se_task (status);
+-- Kolom baru buat tabel yang sudah terlanjur dibuat sebelum fitur assignee.
+alter table public.se_task
+  add column if not exists assignee_id uuid
+  references public.se_profile (id) on delete set null;
+create index if not exists se_task_status_idx   on public.se_task (status);
+create index if not exists se_task_assignee_idx on public.se_task (assignee_id);
 
 alter table public.se_task enable row level security;
 
@@ -245,6 +269,35 @@ begin
 end;
 $$;
 grant execute on function public.se_task_set_status(uuid, text) to authenticated;
+
+-- Member (bukan admin) boleh ubah assignee — lewat RPC ini. p_assignee
+-- NULL = lepas assignee. Assignee wajib member se-math (punya se_profile).
+create or replace function public.se_task_set_assignee(p_id uuid, p_assignee uuid)
+returns public.se_task
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_row public.se_task%rowtype;
+begin
+  if not exists (select 1 from public.se_profile where id = auth.uid()) then
+    raise exception 'Bukan member.' using errcode = '42501';
+  end if;
+  if p_assignee is not null
+     and not exists (select 1 from public.se_profile where id = p_assignee) then
+    raise exception 'Assignee harus member se-math.';
+  end if;
+
+  update public.se_task
+     set assignee_id = p_assignee, updated_at = now()
+   where id = p_id
+   returning * into v_row;
+
+  return v_row;
+end;
+$$;
+grant execute on function public.se_task_set_assignee(uuid, uuid) to authenticated;
 
 -- ── se_subtask: checklist di dalam sebuah task ──────────────────────
 -- Admin nambah/ubah/hapus; semua member boleh centang (lewat RPC).
