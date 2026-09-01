@@ -217,6 +217,54 @@ end;
 $$;
 grant execute on function public.se_task_set_status(uuid, text) to authenticated;
 
+-- ── se_subtask: checklist di dalam sebuah task ──────────────────────
+-- Admin nambah/ubah/hapus; semua member boleh centang (lewat RPC).
+
+create table if not exists public.se_subtask (
+  id         uuid primary key default gen_random_uuid(),
+  task_id    uuid not null references public.se_task (id) on delete cascade,
+  title      text not null,
+  done       boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists se_subtask_task_idx on public.se_subtask (task_id);
+
+alter table public.se_subtask enable row level security;
+
+grant select, insert, update, delete on public.se_subtask to authenticated;
+grant all on public.se_subtask to service_role;
+
+drop policy if exists "se_subtask read" on public.se_subtask;
+create policy "se_subtask read"
+  on public.se_subtask for select using (auth.uid() is not null);
+
+drop policy if exists "se_subtask write admin" on public.se_subtask;
+create policy "se_subtask write admin"
+  on public.se_subtask for all
+  using (public.se_is_admin()) with check (public.se_is_admin());
+
+-- Member biasa boleh centang / uncentang doang.
+create or replace function public.se_subtask_set_done(p_id uuid, p_done boolean)
+returns public.se_subtask
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_row public.se_subtask%rowtype;
+begin
+  if not exists (select 1 from public.se_profile where id = auth.uid()) then
+    raise exception 'Bukan member.' using errcode = '42501';
+  end if;
+  update public.se_subtask
+     set done = p_done
+   where id = p_id
+   returning * into v_row;
+  return v_row;
+end;
+$$;
+grant execute on function public.se_subtask_set_done(uuid, boolean) to authenticated;
+
 -- ── Bootstrap admin pertama ─────────────────────────────────────────
 -- User-nya harus sudah ada di auth.users (pernah login coaching-math, atau
 -- dibuat lewat Authentication -> Users -> Add user). Ganti email, uncomment,

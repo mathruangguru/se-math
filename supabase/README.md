@@ -12,8 +12,9 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
    - `se_profile` (`role`: `member` | `admin`) + `se_is_admin()` +
      `se_add_member(email, role)` + trigger `se_profile_guard_self`
    - `se_hyperlist` + RLS (baca publik, tulis `se_is_admin()`)
-   - `se_task` + RLS (baca user login, tulis `se_is_admin()`) +
-     `se_task_set_status(id, status)` — biar member bisa ubah status doang
+   - `se_task` + `se_subtask` + RLS (baca user login, tulis `se_is_admin()`) +
+     `se_task_set_status(id, status)` / `se_subtask_set_done(id, done)` —
+     biar member bisa ubah status / centang subtask doang
    - Aman di-run ulang tiap ada tabel baru.
 2. **Bikin admin pertama** — di `se_schema.sql` bagian bawah, uncomment
    blok bootstrap, ganti email (user harus sudah pernah login
@@ -63,11 +64,14 @@ Board bersama. Semua user login lihat & bisa ubah **status** (lewat RPC
 `se_task_set_status`). Tambah / edit / hapus task cuma admin. Tampilan
 List / Tabel / Kanban (pilihan disimpan di `localStorage`).
 
+Tiap task punya **subtask** (checklist, tabel `se_subtask`): admin
+nambah/hapus, semua member boleh centang (`se_subtask_set_done`).
+
 ## Isi
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_task` + `se_task_set_status()` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_task` / `se_subtask` + `se_task_set_status()` / `se_subtask_set_done()` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 (list/create/update/delete/bulkCreate), `src/lib/tasks.js`

@@ -13,6 +13,7 @@ import Skeleton from "../components/ui/Skeleton";
 import Pagination from "../components/ui/Pagination";
 import Modal from "../components/ui/Modal";
 import SegmentedControl from "../components/ui/SegmentedControl";
+import SubtaskChecklist from "../components/task/SubtaskChecklist";
 import { useAuth } from "../context/auth-context";
 import { shortDate, deadlineTone } from "../lib/date";
 import {
@@ -21,6 +22,10 @@ import {
   updateTask,
   deleteTask,
   setTaskStatus,
+  listSubtasks,
+  createSubtask,
+  deleteSubtask,
+  setSubtaskDone,
 } from "../lib/tasks";
 
 const VIEW_KEY = "se-task-view";
@@ -99,6 +104,7 @@ export default function TaskPage() {
   const { isAdmin } = useAuth();
 
   const [rows, setRows] = useState([]);
+  const [subs, setSubs] = useState([]); // flat se_subtask rows
   const [status, setStatus] = useState("loading"); // loading | error | ready
   const [msg, setMsg] = useState(null); // { ok, text }
   const [rowBusyId, setRowBusyId] = useState(null);
@@ -124,8 +130,9 @@ export default function TaskPage() {
 
   async function fetchTasks() {
     try {
-      const data = await listTasks();
-      setRows(data);
+      const [t, s] = await Promise.all([listTasks(), listSubtasks()]);
+      setRows(t);
+      setSubs(s);
       setStatus("ready");
     } catch (err) {
       console.error("[task] gagal memuat:", err);
@@ -135,10 +142,11 @@ export default function TaskPage() {
 
   useEffect(() => {
     let alive = true;
-    listTasks()
-      .then((data) => {
+    Promise.all([listTasks(), listSubtasks()])
+      .then(([t, s]) => {
         if (!alive) return;
-        setRows(data);
+        setRows(t);
+        setSubs(s);
         setStatus("ready");
       })
       .catch((err) => {
@@ -150,6 +158,57 @@ export default function TaskPage() {
       alive = false;
     };
   }, []);
+
+  const subByTask = useMemo(() => {
+    const m = new Map();
+    for (const s of subs) {
+      if (!m.has(s.task_id)) m.set(s.task_id, []);
+      m.get(s.task_id).push(s);
+    }
+    return m;
+  }, [subs]);
+
+  const handleSubToggle = async (id, done) => {
+    setSubs((prev) => prev.map((s) => (s.id === id ? { ...s, done } : s)));
+    try {
+      await setSubtaskDone(id, done);
+    } catch (err) {
+      setSubs((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, done: !done } : s))
+      );
+      window.alert(`Gagal: ${err?.message ?? err}`);
+    }
+  };
+
+  const handleSubAdd = async (taskId, title) => {
+    try {
+      const row = await createSubtask(taskId, title);
+      setSubs((prev) => [...prev, row]);
+    } catch (err) {
+      window.alert(`Gagal menambah subtask: ${err?.message ?? err}`);
+    }
+  };
+
+  const handleSubDelete = async (id) => {
+    const keep = subs;
+    setSubs((prev) => prev.filter((s) => s.id !== id));
+    try {
+      await deleteSubtask(id);
+    } catch (err) {
+      setSubs(keep);
+      window.alert(`Gagal menghapus subtask: ${err?.message ?? err}`);
+    }
+  };
+
+  const subChecklist = (t) => (
+    <SubtaskChecklist
+      items={subByTask.get(t.id) ?? []}
+      isAdmin={isAdmin}
+      onToggle={handleSubToggle}
+      onAdd={(title) => handleSubAdd(t.id, title)}
+      onDelete={handleSubDelete}
+    />
+  );
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -468,6 +527,7 @@ export default function TaskPage() {
                 <div className="mt-1.5 flex items-center gap-2">
                   <Deadline task={t} />
                 </div>
+                {subChecklist(t)}
               </div>
               {statusSelect(t)}
               <div className="flex shrink-0 items-center">
@@ -516,6 +576,7 @@ export default function TaskPage() {
                           {t.description}
                         </p>
                       )}
+                      {subChecklist(t)}
                     </td>
                     <td className="px-4 py-3">
                       <PriorityChip p={t.priority} />
@@ -582,6 +643,7 @@ export default function TaskPage() {
                             {t.description}
                           </p>
                         )}
+                        {subChecklist(t)}
                         <div className="mt-2 flex items-center justify-between">
                           <Deadline task={t} />
                           <div className="flex items-center gap-1">

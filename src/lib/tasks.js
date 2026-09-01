@@ -79,3 +79,64 @@ export async function setTaskStatus(id, status) {
   if (error) throw error;
   return data;
 }
+
+// ── Subtask (checklist per task) ────────────────────────────────────
+
+const ST_COLS = "id, task_id, title, done";
+
+/** Semua subtask (semua task) — di-group per task_id di UI. */
+export async function listSubtasks() {
+  ensure();
+  const out = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("se_subtask")
+      .select(ST_COLS)
+      .order("created_at")
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    out.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return out;
+}
+
+export async function createSubtask(taskId, title) {
+  ensure();
+  const { data, error } = await supabase
+    .from("se_subtask")
+    .insert({ task_id: taskId, title: title.trim() })
+    .select(ST_COLS)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function renameSubtask(id, title) {
+  ensure();
+  const { data, error } = await supabase
+    .from("se_subtask")
+    .update({ title: title.trim() })
+    .eq("id", id)
+    .select(ST_COLS)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteSubtask(id) {
+  ensure();
+  const { error } = await supabase.from("se_subtask").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Centang / uncentang — boleh member biasa. */
+export async function setSubtaskDone(id, done) {
+  ensure();
+  const { data, error } = await supabase.rpc("se_subtask_set_done", {
+    p_id: id,
+    p_done: done,
+  });
+  if (error) throw error;
+  return data;
+}
