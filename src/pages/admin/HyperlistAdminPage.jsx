@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Check,
+  Copy,
   Pencil,
   Plus,
   Trash2,
@@ -25,11 +26,18 @@ const emptyForm = { id: null, kode: "", topik: "", subtopik: "", link: "" };
 const fieldCls =
   "mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-brand-500";
 
+// Tanda tangan 1 baris (semua kolom) buat deteksi baris yang sama persis.
+const sigOf = (r) =>
+  [r.kode, r.topik, r.subtopik, r.link]
+    .map((s) => (s ?? "").trim().toLowerCase())
+    .join(" | ");
+
 export default function HyperlistAdminPage() {
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("loading"); // loading | error | ready
   const [q, setQ] = useState("");
   const [dupOnly, setDupOnly] = useState(false);
+  const [sameOnly, setSameOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [rowBusyId, setRowBusyId] = useState(null);
   const [msg, setMsg] = useState(null); // { ok, text }
@@ -74,23 +82,31 @@ export default function HyperlistAdminPage() {
     };
   }, []);
 
-  // kode -> jumlah, cuma yang muncul > 1x.
+  // Deteksi: (a) kode kembar (kode sama, isi boleh beda) dan
+  //          (b) baris sama persis (semua kolom identik).
   const dup = useMemo(() => {
-    const count = new Map();
+    const kodeCount = new Map();
+    const sigCount = new Map();
     for (const r of rows) {
       const k = (r.kode ?? "").trim();
-      if (k) count.set(k, (count.get(k) ?? 0) + 1);
+      if (k) kodeCount.set(k, (kodeCount.get(k) ?? 0) + 1);
+      const s = sigOf(r);
+      sigCount.set(s, (sigCount.get(s) ?? 0) + 1);
     }
-    const kodes = new Map([...count].filter(([, n]) => n > 1));
-    let baris = 0;
-    for (const n of kodes.values()) baris += n;
-    return { kodes, baris };
+    const kodes = new Map([...kodeCount].filter(([, n]) => n > 1));
+    const sigs = new Map([...sigCount].filter(([, n]) => n > 1));
+    let kodeBaris = 0;
+    for (const n of kodes.values()) kodeBaris += n;
+    let sameBaris = 0;
+    for (const n of sigs.values()) sameBaris += n;
+    return { kodes, kodeBaris, sigs, sameBaris };
   }, [rows]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
       if (dupOnly && !dup.kodes.has((r.kode ?? "").trim())) return false;
+      if (sameOnly && !dup.sigs.has(sigOf(r))) return false;
       if (!needle) return true;
       return (
         r.kode.toLowerCase().includes(needle) ||
@@ -98,10 +114,10 @@ export default function HyperlistAdminPage() {
         r.subtopik.toLowerCase().includes(needle)
       );
     });
-  }, [rows, q, dupOnly, dup]);
+  }, [rows, q, dupOnly, sameOnly, dup]);
 
   // Balik ke halaman 1 tiap filter berubah (adjust state saat render).
-  const filterKey = `${q} ${dupOnly}`;
+  const filterKey = `${q} ${dupOnly} ${sameOnly}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -409,7 +425,7 @@ export default function HyperlistAdminPage() {
                 : ""}{" "}
               materi
             </span>
-            {dup.kodes.size > 0 ? (
+            {dup.kodes.size > 0 && (
               <button
                 onClick={() => setDupOnly((v) => !v)}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold transition-colors ${
@@ -423,12 +439,27 @@ export default function HyperlistAdminPage() {
               >
                 <AlertTriangle size={12} />
                 {dup.kodes.size.toLocaleString("id")} kode kembar ·{" "}
-                {dup.baris.toLocaleString("id")} baris
+                {dup.kodeBaris.toLocaleString("id")} baris
                 {dupOnly ? " — tutup" : ""}
               </button>
-            ) : (
+            )}
+            {dup.sigs.size > 0 && (
+              <button
+                onClick={() => setSameOnly((v) => !v)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold transition-colors ${
+                  sameOnly
+                    ? "border-rose-300 bg-rose-100 text-rose-800"
+                    : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                }`}
+              >
+                <Copy size={12} />
+                {dup.sameBaris.toLocaleString("id")} baris sama persis
+                {sameOnly ? " — tutup" : ""}
+              </button>
+            )}
+            {dup.kodes.size === 0 && dup.sigs.size === 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">
-                <Check size={12} /> Nggak ada kode kembar
+                <Check size={12} /> Nggak ada duplikat
               </span>
             )}
           </div>
@@ -451,10 +482,19 @@ export default function HyperlistAdminPage() {
                   >
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-500">
                       {r.kode}
-                      {dup.kodes.has((r.kode ?? "").trim()) && (
-                        <span className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 font-sans text-[10px] font-semibold text-amber-700">
-                          ×{dup.kodes.get((r.kode ?? "").trim())}
+                      {dup.sigs.has(sigOf(r)) ? (
+                        <span
+                          className="ml-1.5 rounded bg-rose-100 px-1 py-0.5 font-sans text-[10px] font-semibold text-rose-700"
+                          title="Baris ini sama persis dengan baris lain"
+                        >
+                          ×{dup.sigs.get(sigOf(r))} sama
                         </span>
+                      ) : (
+                        dup.kodes.has((r.kode ?? "").trim()) && (
+                          <span className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 font-sans text-[10px] font-semibold text-amber-700">
+                            ×{dup.kodes.get((r.kode ?? "").trim())}
+                          </span>
+                        )
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-zinc-600">
