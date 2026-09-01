@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Skeleton from "../../components/ui/Skeleton";
 import Pagination from "../../components/ui/Pagination";
+import Modal from "../../components/ui/Modal";
 import {
   listHyperlist,
   createHyperlistEntry,
@@ -260,15 +261,13 @@ export default function HyperlistAdminPage() {
         </button>
       </div>
 
-      {/* Form tambah / edit */}
-      {showForm && (
-        <form
-          onSubmit={handleSave}
-          className="flex flex-col gap-3 rounded-2xl border border-zinc-200/80 bg-white p-5"
-        >
-          <p className="text-sm font-bold tracking-tight text-zinc-900">
-            {form.id ? "Ubah materi" : "Materi baru"}
-          </p>
+      {/* Form tambah / edit — modal */}
+      <Modal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title={form.id ? "Ubah materi" : "Materi baru"}
+      >
+        <form onSubmit={handleSave} className="flex flex-col gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-xs font-medium text-zinc-600">
               Kode
@@ -324,7 +323,7 @@ export default function HyperlistAdminPage() {
             </button>
           </div>
         </form>
-      )}
+      </Modal>
 
       {/* Impor massal */}
       {showImport && (
