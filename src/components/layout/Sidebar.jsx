@@ -67,9 +67,13 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
       </button>
 
       {/* Brand */}
-      <div className="flex flex-col items-center gap-2.5 px-1 text-center">
-        <img src={ruangguruLogo} alt="Ruangguru" className="h-8 w-auto" />
-        <p className="text-base font-extrabold uppercase tracking-wide text-zinc-900">
+      <div className="flex items-center gap-3 px-1">
+        <img
+          src={ruangguruLogo}
+          alt="Ruangguru"
+          className="h-10 w-auto shrink-0"
+        />
+        <p className="text-xs font-extrabold uppercase leading-tight tracking-wide text-zinc-900">
           Subject Excellence Matematika
         </p>
       </div>
