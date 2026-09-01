@@ -10,6 +10,7 @@ import {
   Upload,
 } from "lucide-react";
 import Skeleton from "../../components/ui/Skeleton";
+import Pagination from "../../components/ui/Pagination";
 import {
   listHyperlist,
   createHyperlistEntry,
@@ -28,6 +29,7 @@ export default function HyperlistAdminPage() {
   const [status, setStatus] = useState("loading"); // loading | error | ready
   const [q, setQ] = useState("");
   const [dupOnly, setDupOnly] = useState(false);
+  const [page, setPage] = useState(1);
   const [rowBusyId, setRowBusyId] = useState(null);
   const [msg, setMsg] = useState(null); // { ok, text }
 
@@ -96,6 +98,20 @@ export default function HyperlistAdminPage() {
       );
     });
   }, [rows, q, dupOnly, dup]);
+
+  // Balik ke halaman 1 tiap filter berubah (adjust state saat render).
+  const filterKey = `${q} ${dupOnly}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setPage(1);
+  }
+
+  const PER_PAGE = 50;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const safePage = Math.min(page, pageCount);
+  const start = (safePage - 1) * PER_PAGE;
+  const shown = filtered.slice(start, start + PER_PAGE);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
@@ -383,8 +399,16 @@ export default function HyperlistAdminPage() {
         <>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
             <span className="text-zinc-400">
-              {filtered.length.toLocaleString("id")} dari{" "}
-              {rows.length.toLocaleString("id")} materi
+              {filtered.length === 0
+                ? "0"
+                : `${(start + 1).toLocaleString("id")}–${(
+                    start + shown.length
+                  ).toLocaleString("id")}`}{" "}
+              dari {filtered.length.toLocaleString("id")}
+              {filtered.length !== rows.length
+                ? ` (total ${rows.length.toLocaleString("id")})`
+                : ""}{" "}
+              materi
             </span>
             {dup.kodes.size > 0 ? (
               <button
@@ -421,7 +445,7 @@ export default function HyperlistAdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.slice(0, 800).map((r) => (
+                {shown.map((r) => (
                   <tr
                     key={r.id}
                     className="border-t border-zinc-100 align-top transition-colors hover:bg-zinc-50"
@@ -465,11 +489,12 @@ export default function HyperlistAdminPage() {
               </tbody>
             </table>
           </div>
-          {filtered.length > 800 && (
-            <p className="text-xs text-zinc-400">
-              Menampilkan 800 teratas — persempit pencarian.
-            </p>
-          )}
+
+          <Pagination
+            page={safePage}
+            pageCount={pageCount}
+            onChange={setPage}
+          />
         </>
       )}
     </div>
