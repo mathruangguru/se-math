@@ -27,13 +27,22 @@ function initials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export default function Avatar({ name = "", id = "", size = 24, title }) {
+export default function Avatar({
+  name = "",
+  id = "",
+  size = 24,
+  title,
+  ring = false,
+}) {
   const dim = { width: size, height: size };
+  // Ring ditempel di lingkaran avatar-nya langsung (bukan span pembungkus)
+  // biar render bulat bersih. Dipakai buat misahin avatar yang ditumpuk.
+  const ringCls = ring ? "shadow-[0_0_0_1.5px_#fff]" : "";
 
   if (!name) {
     return (
       <span
-        className="inline-grid shrink-0 place-items-center rounded-full border border-dashed border-zinc-300 text-zinc-300"
+        className={`inline-grid shrink-0 place-items-center rounded-full border border-dashed border-zinc-300 text-zinc-300 ${ringCls}`}
         style={{ ...dim, fontSize: size * 0.5 }}
         title={title ?? "Belum ada assignee"}
         aria-hidden="true"
@@ -46,7 +55,7 @@ export default function Avatar({ name = "", id = "", size = 24, title }) {
   const color = COLORS[hash(id || name) % COLORS.length];
   return (
     <span
-      className={`inline-grid shrink-0 place-items-center rounded-full font-semibold leading-none text-white ${color}`}
+      className={`inline-grid shrink-0 place-items-center rounded-full font-semibold leading-none text-white ${color} ${ringCls}`}
       style={{ ...dim, fontSize: size * 0.4 }}
       title={title ?? name}
     >
@@ -56,8 +65,8 @@ export default function Avatar({ name = "", id = "", size = 24, title }) {
 }
 
 // Tumpukan avatar + "+N" kalau kelebihan. people: [{ id, name }].
-// Avatar kiri di paling atas — pas nimpa yang kanan, potongannya bulat
-// bersih. Nggak pakai ring putih (bikin berantakan di lingkaran kecil).
+// Avatar kiri di paling atas; tiap avatar punya ring putih 1.5px (nempel
+// di lingkarannya langsung) buat misahin dari yang di belakangnya.
 export function AvatarGroup({ people = [], size = 20, max = 4 }) {
   if (people.length === 0) return null;
   const shown = people.slice(0, max);
@@ -76,7 +85,7 @@ export function AvatarGroup({ people = [], size = 20, max = 4 }) {
             zIndex: shown.length - i,
           }}
         >
-          <Avatar name={p.name} id={p.id ?? p.name} size={size} />
+          <Avatar name={p.name} id={p.id ?? p.name} size={size} ring />
         </span>
       ))}
       {rest > 0 && (
