@@ -13,6 +13,10 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
      `se_add_member(email, role)` + trigger `se_profile_guard_self`
    - `se_hyperlist` + RLS (baca publik, tulis `se_is_admin()`)
    - `se_link` + RLS (baca publik, tulis `se_is_admin()`)
+   - `se_task` + `se_subtask` + RLS (baca user login, tulis `se_is_admin()`) +
+     `se_task_set_status(id, status)` / `se_subtask_set_done(id, done)` —
+     biar member bisa ubah status / centang subtask doang
+   - Aman di-run ulang tiap ada tabel baru.
 2. **Bikin admin pertama** — di `se_schema.sql` bagian bawah, uncomment
    blok bootstrap, ganti email (user harus sudah pernah login
    coaching-math / dibuat di Authentication → Users), Run.
@@ -55,6 +59,15 @@ hapus/turunkan role akun sendiri (trigger `se_profile_guard_self`).
 baris per materi) → centang **Ganti semua isi tabel** → **Impor**. Format
 sama persis dengan `public/hyperlist.tsv`.
 
+## Task — `/task`
+
+Board bersama. Semua user login lihat & bisa ubah **status** (lewat RPC
+`se_task_set_status`). Tambah / edit / hapus task cuma admin. Tampilan
+List / Tabel / Kanban (pilihan disimpan di `localStorage`).
+
+Tiap task punya **subtask** (checklist, tabel `se_subtask`): admin
+nambah/hapus, semua member boleh centang (`se_subtask_set_done`).
+
 ## Isi data Link — `/admin/link`
 
 **Tambah link** (modal): judul + URL (wajib), deskripsi, kategori / grup.
@@ -64,10 +77,11 @@ Menu **Link** buat semua user login mengelompokkan link per kategori.
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_task` / `se_subtask` + `se_task_set_status()` / `se_subtask_set_done()` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 (list/create/update/delete/bulkCreate), `src/lib/links.js`
-(list/create/update/delete), `src/lib/members.js`
+(list/create/update/delete), `src/lib/tasks.js`
+(list/create/update/delete + `setTaskStatus` rpc), `src/lib/members.js`
 (list/add/setRole/remove), `src/lib/auth.js` +
 `src/context/AuthProvider.jsx` (session, `se_profile`, role).
