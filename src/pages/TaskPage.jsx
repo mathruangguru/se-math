@@ -62,12 +62,12 @@ const fieldCls =
 const filterCls =
   "h-9 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-brand-500 focus:bg-white";
 
-const PRIO_META = {
-  P0: { chip: "bg-rose-100 text-rose-700", bar: "bg-rose-400/80" },
-  P1: { chip: "bg-brand-100 text-brand-700", bar: "bg-brand-400/80" },
-  P2: { chip: "bg-amber-100 text-amber-700", bar: "bg-amber-400/80" },
-  P3: { chip: "bg-sky-100 text-sky-700", bar: "bg-sky-400/80" },
-  P4: { chip: "bg-zinc-100 text-zinc-600", bar: "bg-zinc-300" },
+const PRIO_BAR = {
+  P0: "bg-rose-400/80",
+  P1: "bg-brand-400/80",
+  P2: "bg-amber-400/80",
+  P3: "bg-sky-400/80",
+  P4: "bg-zinc-300",
 };
 const STATUS_META = {
   todo: {
@@ -92,13 +92,11 @@ const TONE_CLS = {
   ok: "text-zinc-500",
 };
 
+// Chip netral — warna prioritas cuma dari bar aksen di kiri kartu, biar
+// nggak nambah satu sistem warna lagi di tiap baris.
 function PriorityChip({ p }) {
   return (
-    <span
-      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-        (PRIO_META[p] ?? PRIO_META.P2).chip
-      }`}
-    >
+    <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500">
       {p}
     </span>
   );
@@ -144,7 +142,6 @@ export default function TaskPage() {
 
   const [view, setView] = useState(readView);
   const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
   const [page, setPage] = useState(1);
 
@@ -341,7 +338,6 @@ export default function TaskPage() {
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((t) => {
-      if (statusFilter && t.status !== statusFilter) return false;
       const ids = rollupByTask.get(t.id) ?? [];
       if (assigneeFilter === "__none" && ids.length > 0) return false;
       if (assigneeFilter === "__me" && !ids.includes(myId)) return false;
@@ -358,10 +354,10 @@ export default function TaskPage() {
         (t.description ?? "").toLowerCase().includes(needle)
       );
     });
-  }, [rows, q, statusFilter, assigneeFilter, myId, rollupByTask]);
+  }, [rows, q, assigneeFilter, myId, rollupByTask]);
 
   // Balik ke halaman 1 tiap filter berubah (adjust state saat render).
-  const filterKey = `${q} ${statusFilter} ${assigneeFilter}`;
+  const filterKey = `${q} ${assigneeFilter}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -502,8 +498,7 @@ export default function TaskPage() {
       <div>
         <h1 className="text-xl font-bold tracking-tight text-zinc-900">Task</h1>
         <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-          Board tugas bersama — status bisa diubah siapa saja, assignee diatur
-          per subtask dan direkap ke task.
+          Board bersama — assignee diatur per subtask.
         </p>
       </div>
 
@@ -522,20 +517,8 @@ export default function TaskPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Cari…"
-          className="h-9 flex-1 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-700 outline-none transition-colors placeholder:text-zinc-400 focus:border-brand-500 focus:bg-white sm:max-w-[180px]"
+          className="h-9 flex-1 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-700 outline-none transition-colors placeholder:text-zinc-400 focus:border-brand-500 focus:bg-white sm:max-w-[200px]"
         />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className={filterCls}
-        >
-          <option value="">Semua status</option>
-          {STATUSES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
         <select
           value={assigneeFilter}
           onChange={(e) => setAssigneeFilter(e.target.value)}
@@ -651,27 +634,12 @@ export default function TaskPage() {
         </form>
       </Modal>
 
-      {/* Ringkasan */}
+      {/* Ringkasan — satu baris teks */}
       {status === "ready" && rows.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-zinc-800 px-2.5 py-1 font-semibold text-white">
-            {rows.length} task
-          </span>
-          {STATUSES.map((s) => (
-            <span
-              key={s.value}
-              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-2.5 py-1 font-medium text-zinc-600"
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${STATUS_META[s.value].dot}`}
-              />
-              {s.label}
-              <span className="font-semibold text-zinc-900">
-                {counts[s.value]}
-              </span>
-            </span>
-          ))}
-        </div>
+        <p className="-mt-2 text-xs text-zinc-400">
+          {rows.length} task · {counts.todo} to do · {counts.doing} dikerjakan ·{" "}
+          {counts.done} selesai
+        </p>
       )}
 
       {/* Isi */}
@@ -698,7 +666,7 @@ export default function TaskPage() {
             >
               <span
                 className={`absolute inset-y-0 left-0 w-[3px] ${
-                  (PRIO_META[t.priority] ?? PRIO_META.P2).bar
+                  PRIO_BAR[t.priority] ?? PRIO_BAR.P2
                 }`}
               />
               <div className="flex items-start gap-3">
@@ -716,15 +684,15 @@ export default function TaskPage() {
                     </p>
                   </div>
                   {t.description && (
-                    <p className="mt-1 line-clamp-2 text-xs text-zinc-500">
+                    <p className="mt-1 line-clamp-1 text-xs text-zinc-500">
                       {t.description}
                     </p>
                   )}
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     {rollupAvatars(t)}
                     <Deadline task={t} />
+                    {subChecklist(t)}
                   </div>
-                  {subChecklist(t)}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1.5">
                   {statusSelect(t)}
@@ -782,7 +750,14 @@ export default function TaskPage() {
                       {subChecklist(t)}
                     </td>
                     <td className="px-4 py-3">
-                      <PriorityChip p={t.priority} />
+                      <span className="inline-flex items-center gap-1.5">
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            PRIO_BAR[t.priority] ?? PRIO_BAR.P2
+                          }`}
+                        />
+                        <PriorityChip p={t.priority} />
+                      </span>
                     </td>
                     <td className="px-4 py-3">{rollupAvatars(t)}</td>
                     <td className="px-4 py-3">{statusSelect(t)}</td>
@@ -830,7 +805,7 @@ export default function TaskPage() {
                       >
                         <span
                           className={`absolute inset-y-0 left-0 w-[3px] ${
-                            (PRIO_META[t.priority] ?? PRIO_META.P2).bar
+                            PRIO_BAR[t.priority] ?? PRIO_BAR.P2
                           }`}
                         />
                         <div className="flex items-start justify-between gap-2">

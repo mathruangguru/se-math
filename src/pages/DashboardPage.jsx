@@ -17,12 +17,12 @@ import {
   setSubtaskDone,
 } from "../lib/tasks";
 
-const PRIO_CLS = {
-  P0: "bg-rose-100 text-rose-700",
-  P1: "bg-brand-100 text-brand-700",
-  P2: "bg-amber-100 text-amber-700",
-  P3: "bg-sky-100 text-sky-700",
-  P4: "bg-zinc-100 text-zinc-600",
+const PRIO_BAR = {
+  P0: "bg-rose-400/80",
+  P1: "bg-brand-400/80",
+  P2: "bg-amber-400/80",
+  P3: "bg-sky-400/80",
+  P4: "bg-zinc-300",
 };
 const PRIO_RANK = { P0: 0, P1: 1, P2: 2, P3: 3, P4: 4 };
 const TONE_CLS = {
@@ -32,17 +32,15 @@ const TONE_CLS = {
 };
 
 // deadline task terdekat dulu (tanpa deadline paling belakang), lalu prioritas.
-function cmp(a, b) {
-  const ad = a.task.deadline;
-  const bd = b.task.deadline;
-  if (ad && bd) {
-    if (ad !== bd) return ad < bd ? -1 : 1;
-  } else if (ad) {
+function cmpTask(a, b) {
+  if (a.deadline && b.deadline) {
+    if (a.deadline !== b.deadline) return a.deadline < b.deadline ? -1 : 1;
+  } else if (a.deadline) {
     return -1;
-  } else if (bd) {
+  } else if (b.deadline) {
     return 1;
   }
-  return (PRIO_RANK[a.task.priority] ?? 9) - (PRIO_RANK[b.task.priority] ?? 9);
+  return (PRIO_RANK[a.priority] ?? 9) - (PRIO_RANK[b.priority] ?? 9);
 }
 
 export default function DashboardPage() {
@@ -87,17 +85,22 @@ export default function DashboardPage() {
     return m;
   }, [tasks]);
 
-  // Subtask yang di-assign ke aku, belum selesai, di task yang lagi "Dikerjakan".
-  const myRows = useMemo(() => {
+  // Subtask yang di-assign ke aku, belum selesai, di task yang "Dikerjakan",
+  // dikelompokkan per task induk.
+  const groups = useMemo(() => {
     if (!myId) return [];
     const mine = new Set(
       sa.filter((r) => r.person_id === myId).map((r) => r.subtask_id)
     );
-    return subs
-      .filter((s) => mine.has(s.id) && !s.done)
-      .map((s) => ({ ...s, task: taskById.get(s.task_id) }))
-      .filter((r) => r.task && r.task.status === "doing")
-      .sort(cmp);
+    const byTask = new Map(); // taskId -> { task, subs: [] }
+    for (const s of subs) {
+      if (!mine.has(s.id) || s.done) continue;
+      const task = taskById.get(s.task_id);
+      if (!task || task.status !== "doing") continue;
+      if (!byTask.has(task.id)) byTask.set(task.id, { task, subs: [] });
+      byTask.get(task.id).subs.push(s);
+    }
+    return [...byTask.values()].sort((a, b) => cmpTask(a.task, b.task));
   }, [subs, sa, taskById, myId]);
 
   const handleDone = async (sub) => {
@@ -130,16 +133,10 @@ export default function DashboardPage() {
 
       {/* Lagi kamu kerjain */}
       <section className="flex max-w-[760px] flex-col gap-3">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-bold tracking-tight text-zinc-900">
-              Lagi kamu kerjain
-            </h2>
-            <p className="mt-0.5 text-xs text-zinc-500">
-              Subtask yang di-assign ke kamu di task yang lagi jalan. Centang
-              kalau beres.
-            </p>
-          </div>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-sm font-bold tracking-tight text-zinc-900">
+            Lagi kamu kerjain
+          </h2>
           <Link
             to="/task"
             className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700"
@@ -171,60 +168,65 @@ export default function DashboardPage() {
           <p className="rounded-2xl border border-dashed border-rose-300 bg-white px-6 py-10 text-center text-sm text-rose-500">
             Gagal memuat task.
           </p>
-        ) : myRows.length === 0 ? (
+        ) : groups.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-10 text-center text-sm text-zinc-400">
             Nggak ada subtask yang lagi kamu kerjain. 🎉
           </p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {myRows.map((r) => {
-              const tone = deadlineTone(r.task.deadline, r.task.status);
+          <div className="flex flex-col gap-5">
+            {groups.map(({ task, subs: gsubs }) => {
+              const tone = deadlineTone(task.deadline, task.status);
               return (
-                <div
-                  key={r.id}
-                  className="flex items-start gap-3 rounded-xl border border-zinc-200/80 bg-white p-3.5"
-                >
-                  <input
-                    type="checkbox"
-                    checked={false}
-                    disabled={busyId === r.id}
-                    onChange={() => handleDone(r)}
-                    aria-label="Tandai selesai"
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-brand-500 disabled:opacity-40"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium leading-snug text-zinc-900">
-                      {r.title}
-                    </p>
+                <div key={task.id}>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-[2px] ${
+                        PRIO_BAR[task.priority] ?? PRIO_BAR.P2
+                      }`}
+                    />
                     <Link
                       to="/task"
-                      className="mt-0.5 inline-block truncate text-xs text-zinc-400 transition-colors hover:text-zinc-600"
+                      className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-900 transition-colors hover:text-brand-700"
                     >
-                      {r.task.title}
+                      {task.title}
                     </Link>
+                    <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500">
+                      {task.priority}
+                    </span>
+                    {task.deadline ? (
+                      <span
+                        className={`inline-flex shrink-0 items-center gap-1 text-xs ${
+                          TONE_CLS[tone] ?? "text-zinc-500"
+                        }`}
+                        title={shortDate(task.deadline)}
+                      >
+                        <CalendarDays size={12} />
+                        {deadlineLabel(task.deadline, task.status)}
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-xs text-zinc-300">
+                        tanpa deadline
+                      </span>
+                    )}
                   </div>
-                  <span
-                    className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                      PRIO_CLS[r.task.priority] ?? PRIO_CLS.P2
-                    }`}
-                  >
-                    {r.task.priority}
-                  </span>
-                  {r.task.deadline ? (
-                    <span
-                      className={`inline-flex shrink-0 items-center gap-1 text-xs ${
-                        TONE_CLS[tone] ?? "text-zinc-500"
-                      }`}
-                      title={shortDate(r.task.deadline)}
-                    >
-                      <CalendarDays size={12} />
-                      {deadlineLabel(r.task.deadline, r.task.status)}
-                    </span>
-                  ) : (
-                    <span className="shrink-0 text-xs text-zinc-300">
-                      tanpa deadline
-                    </span>
-                  )}
+                  <div className="ml-1 mt-1.5 flex flex-col gap-1.5 border-l border-zinc-200 pl-3.5">
+                    {gsubs.map((s) => (
+                      <label
+                        key={s.id}
+                        className="flex items-center gap-2 text-sm text-zinc-700"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={false}
+                          disabled={busyId === s.id}
+                          onChange={() => handleDone(s)}
+                          aria-label="Tandai selesai"
+                          className="h-4 w-4 shrink-0 accent-brand-500 disabled:opacity-40"
+                        />
+                        <span className="min-w-0 flex-1 truncate">{s.title}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               );
             })}
