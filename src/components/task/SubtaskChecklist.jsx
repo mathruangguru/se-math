@@ -101,7 +101,7 @@ export default function SubtaskChecklist({
   const pos = picker ? popPosition(picker.rect) : null;
 
   return (
-    <div className="mt-1.5">
+    <div>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
