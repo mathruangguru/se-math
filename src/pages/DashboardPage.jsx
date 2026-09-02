@@ -135,7 +135,8 @@ export default function DashboardPage() {
     [tasks]
   );
 
-  // Subtask yang di-assign ke aku, belum selesai, di task yang "Dikerjakan".
+  // Subtask yang di-assign ke aku, belum selesai, di task yang belum selesai
+  // (To do atau Dikerjakan). Dikelompokkan per task induk.
   const groups = useMemo(() => {
     if (!myId) return [];
     const mine = new Set(
@@ -145,7 +146,7 @@ export default function DashboardPage() {
     for (const s of subs) {
       if (!mine.has(s.id) || s.done) continue;
       const task = taskById.get(s.task_id);
-      if (!task || task.status !== "doing") continue;
+      if (!task || task.status === "done") continue;
       if (!byTask.has(task.id)) byTask.set(task.id, { task, subs: [] });
       byTask.get(task.id).subs.push(s);
     }
@@ -250,7 +251,7 @@ export default function DashboardPage() {
       <section className="flex max-w-[760px] flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-sm font-bold tracking-tight text-zinc-900">
-            Lagi kamu kerjain
+            Perlu kamu kerjain
           </h2>
           <Link
             to="/task"
@@ -275,7 +276,7 @@ export default function DashboardPage() {
           </p>
         ) : groups.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-10 text-center text-sm text-zinc-400">
-            Nggak ada subtask yang lagi kamu kerjain. 🎉
+            Nggak ada subtask yang perlu kamu kerjain. 🎉
           </p>
         ) : (
           <div className="flex flex-col gap-5">

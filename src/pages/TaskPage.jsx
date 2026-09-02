@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Columns3,
@@ -102,7 +103,7 @@ function PriorityChip({ p }) {
   );
 }
 
-function Deadline({ task }) {
+function Deadline({ task, bare = false }) {
   if (!task.deadline) return null;
   const tone = deadlineTone(task.deadline, task.status);
   return (
@@ -112,10 +113,23 @@ function Deadline({ task }) {
       }`}
       title={shortDate(task.deadline)}
     >
-      <CalendarDays size={12} />
+      {!bare && <CalendarDays size={12} />}
       {deadlineLabel(task.deadline, task.status)}
     </span>
   );
+}
+
+// Urutan dalam grup List: prioritas (P0 dulu) lalu deadline terdekat.
+function byPrioThenDeadline(a, b) {
+  const p = PRIORITIES.indexOf(a.priority) - PRIORITIES.indexOf(b.priority);
+  if (p !== 0) return p;
+  if (a.deadline && b.deadline) {
+    if (a.deadline !== b.deadline) return a.deadline < b.deadline ? -1 : 1;
+    return 0;
+  }
+  if (a.deadline) return -1;
+  if (b.deadline) return 1;
+  return 0;
 }
 
 function readView() {
@@ -143,6 +157,7 @@ export default function TaskPage() {
   const [view, setView] = useState(readView);
   const [q, setQ] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
+  const [collapsed, setCollapsed] = useState(() => new Set(["done"]));
   const [page, setPage] = useState(1);
 
   const [form, setForm] = useState(emptyForm);
@@ -158,6 +173,14 @@ export default function TaskPage() {
       /* ignore */
     }
   };
+
+  const toggleCollapse = (statusValue) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(statusValue)) next.delete(statusValue);
+      else next.add(statusValue);
+      return next;
+    });
 
   async function fetchTasks() {
     try {
@@ -658,59 +681,85 @@ export default function TaskPage() {
           Belum ada task{isAdmin ? ". Tambah satu." : "."}
         </p>
       ) : view === "list" ? (
-        <div className="flex flex-col gap-2">
-          {filtered.map((t) => (
-            <div
-              key={t.id}
-              className="group relative overflow-hidden rounded-xl border border-zinc-200/80 bg-white p-3.5 pl-4 transition-shadow hover:shadow-sm"
-            >
-              <span
-                className={`absolute inset-y-0 left-0 w-[3px] ${
-                  PRIO_BAR[t.priority] ?? PRIO_BAR.P2
-                }`}
-              />
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <PriorityChip p={t.priority} />
-                    <p
-                      className={`text-sm leading-snug ${
-                        t.status === "done"
-                          ? "font-medium text-zinc-400"
-                          : "font-semibold text-zinc-900"
+        filtered.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-8 text-center text-xs text-zinc-400">
+            Nggak ada yang cocok.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-5">
+            {STATUSES.map((col) => {
+              const items = filtered
+                .filter((t) => t.status === col.value)
+                .sort(byPrioThenDeadline);
+              if (items.length === 0) return null;
+              const isCollapsed = collapsed.has(col.value);
+              return (
+                <div key={col.value}>
+                  <button
+                    type="button"
+                    onClick={() => toggleCollapse(col.value)}
+                    className="mb-2 flex items-center gap-2 text-xs font-semibold text-zinc-600 transition-colors hover:text-zinc-900"
+                  >
+                    {isCollapsed ? (
+                      <ChevronRight size={14} />
+                    ) : (
+                      <ChevronDown size={14} />
+                    )}
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        STATUS_META[col.value].dot
                       }`}
-                    >
-                      {t.title}
-                    </p>
-                  </div>
-                  {t.description && (
-                    <p className="mt-1 line-clamp-1 text-xs text-zinc-500">
-                      {t.description}
-                    </p>
-                  )}
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    {rollupAvatars(t)}
-                    <Deadline task={t} />
-                    {subChecklist(t)}
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  {statusSelect(t)}
-                  {isAdmin && (
-                    <div className="flex items-center opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
-                      {adminActions(t)}
+                    />
+                    {col.label}
+                    <span className="font-normal text-zinc-400">
+                      {items.length}
+                    </span>
+                  </button>
+
+                  {!isCollapsed && (
+                    <div className="divide-y divide-zinc-100 rounded-xl border border-zinc-200/80 bg-white">
+                      {items.map((t) => (
+                        <div
+                          key={t.id}
+                          className="group relative flex flex-col gap-1 py-2.5 pl-4 pr-3 transition-colors hover:bg-zinc-50"
+                        >
+                          <span
+                            className={`absolute inset-y-1 left-0 w-[3px] rounded-full ${
+                              PRIO_BAR[t.priority] ?? PRIO_BAR.P2
+                            }`}
+                          />
+                          <div className="flex items-center gap-2">
+                            <p
+                              className={`min-w-0 flex-1 truncate text-sm ${
+                                t.status === "done"
+                                  ? "font-medium text-zinc-400"
+                                  : "font-semibold text-zinc-900"
+                              }`}
+                            >
+                              {t.title}
+                            </p>
+                            <span className="shrink-0 text-[10px] font-semibold text-zinc-400">
+                              {t.priority}
+                            </span>
+                            <span className="flex shrink-0 items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                              {statusSelect(t)}
+                              {adminActions(t)}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-zinc-400">
+                            {rollupAvatars(t)}
+                            <Deadline task={t} bare />
+                            {subChecklist(t)}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
-          ))}
-          {filtered.length === 0 && (
-            <p className="rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-8 text-center text-xs text-zinc-400">
-              Nggak ada yang cocok.
-            </p>
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )
       ) : view === "table" ? (
         <>
           <p className="text-xs text-zinc-400">
