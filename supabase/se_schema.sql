@@ -422,6 +422,53 @@ create policy "se_joke delete own or admin"
   on public.se_joke for delete
   using (created_by = auth.uid() or public.se_is_admin());
 
+-- ── se_daily_report: Manpower Allocation (laporan harian) ──────────
+-- Tiap member isi laporan harian sendiri. Member cuma lihat punya sendiri;
+-- admin lihat semua. Alokasi bisa jam atau persen. Murni policy, tanpa RPC.
+
+create table if not exists public.se_daily_report (
+  id          uuid primary key default gen_random_uuid(),
+  person_id   uuid not null references public.se_profile (id) on delete cascade,
+  report_date date not null default current_date,
+  activity    text not null default '',
+  category    text not null default '',
+  alloc_value numeric,
+  alloc_unit  text not null default 'jam'
+              check (alloc_unit in ('jam', 'persen')),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz
+);
+create index if not exists se_daily_report_date_idx
+  on public.se_daily_report (report_date);
+create index if not exists se_daily_report_person_idx
+  on public.se_daily_report (person_id);
+
+alter table public.se_daily_report enable row level security;
+
+grant select, insert, update, delete on public.se_daily_report to authenticated;
+grant all on public.se_daily_report to service_role;
+
+drop policy if exists "se_daily_report read own or admin" on public.se_daily_report;
+create policy "se_daily_report read own or admin"
+  on public.se_daily_report for select
+  using (person_id = auth.uid() or public.se_is_admin());
+
+drop policy if exists "se_daily_report insert own" on public.se_daily_report;
+create policy "se_daily_report insert own"
+  on public.se_daily_report for insert
+  with check (public.se_is_member() and person_id = auth.uid());
+
+drop policy if exists "se_daily_report update own or admin" on public.se_daily_report;
+create policy "se_daily_report update own or admin"
+  on public.se_daily_report for update
+  using (person_id = auth.uid() or public.se_is_admin())
+  with check (person_id = auth.uid() or public.se_is_admin());
+
+drop policy if exists "se_daily_report delete own or admin" on public.se_daily_report;
+create policy "se_daily_report delete own or admin"
+  on public.se_daily_report for delete
+  using (person_id = auth.uid() or public.se_is_admin());
+
 -- ── Bootstrap admin pertama ─────────────────────────────────────────
 -- User-nya harus sudah ada di auth.users (pernah login coaching-math, atau
 -- dibuat lewat Authentication -> Users -> Add user). Ganti email, uncomment,

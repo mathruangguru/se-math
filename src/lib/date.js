@@ -16,6 +16,23 @@ export function longDate(date = new Date()) {
   });
 }
 
+// "YYYY-MM-DD" buat hari ini di zona waktu lokal (bukan UTC).
+export function todayStr() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+
+// Contoh: "Rabu, 4 September". Terima "YYYY-MM-DD".
+export function fullDate(dateStr) {
+  if (!dateStr) return "";
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+}
+
 // Contoh: "12 Sep". Terima "YYYY-MM-DD" atau Date.
 export function shortDate(d) {
   if (!d) return "";
