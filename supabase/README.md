@@ -15,7 +15,7 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
      member se-math bisa saling lihat (buat assignee).
    - `se_hyperlist` + RLS (baca publik, tulis `se_is_admin()`)
    - `se_link` + RLS (baca publik, tulis `se_is_admin()`)
-   - `se_joke` + RLS — Jokes Corner. Baca semua yang login; tiap member
+   - `se_joke` + RLS — Pojok Jokes. Baca semua yang login; tiap member
      nyumbang joke sendiri (edit/hapus punya sendiri), admin bisa edit/hapus
      punya siapa aja. Murni policy, tanpa RPC.
    - `se_task` + `se_subtask` + `se_subtask_assignee` (assignee per-subtask,
@@ -58,7 +58,7 @@ coaching-math — se-math nggak bikin akun auth baru). Bisa set role
 hapus/turunkan role akun sendiri (trigger `se_profile_guard_self`).
 
 - User login tapi belum ada di `se_profile` → layar "Akun belum terdaftar".
-- `member` = bisa buka Dashboard / Task / Hyperlist / Link / Jokes Corner.
+- `member` = bisa buka Dashboard / Task / Hyperlist / Link / Pojok Jokes.
 - `admin` = + `/admin/hyperlist`, `/admin/link` & `/admin/users`.
 
 ## Isi data Hyperlist — `/admin/hyperlist`
@@ -89,7 +89,7 @@ dari assignee semua subtask-nya (dihitung di klien).
 **Tambah link** (modal): judul + URL (wajib), deskripsi, kategori / grup.
 Menu **Link** buat semua user login mengelompokkan link per kategori.
 
-## Jokes Corner — `/jokes`
+## Pojok Jokes — `/jokes`
 
 Flashcard tebak-tebakan: **depan** = tebakan, **belakang** = jawaban (klik
 kartu buat balik). Grid + search + tombol **Acak** yang nyorot satu kartu

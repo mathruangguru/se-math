@@ -20,7 +20,7 @@ const mainNav = [
   { to: "/task", label: "Task", icon: ListChecks },
   { to: "/hyperlist", label: "Hyperlist", icon: ListTree },
   { to: "/link", label: "Link", icon: Link2 },
-  { to: "/jokes", label: "Jokes Corner", icon: Laugh },
+  { to: "/jokes", label: "Pojok Jokes", icon: Laugh },
 ];
 
 const adminNav = [

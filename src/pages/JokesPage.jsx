@@ -261,7 +261,7 @@ export default function JokesPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-zinc-900">
-            Jokes Corner
+            Pojok Jokes
           </h1>
           <p className="mt-1 text-xs leading-relaxed text-zinc-500">
             Kartu tebak-tebakan — klik buat lihat jawabannya. Semua boleh
