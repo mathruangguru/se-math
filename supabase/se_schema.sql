@@ -424,7 +424,7 @@ create policy "se_joke delete own or admin"
 
 -- ── se_daily_report: Manpower Allocation (laporan harian) ──────────
 -- Tiap member isi laporan harian sendiri. Member cuma lihat punya sendiri;
--- admin lihat semua. Alokasi bisa jam atau persen. Murni policy, tanpa RPC.
+-- admin lihat semua. Alokasi = durasi: jam atau menit. Murni policy, tanpa RPC.
 
 create table if not exists public.se_daily_report (
   id          uuid primary key default gen_random_uuid(),
@@ -434,7 +434,7 @@ create table if not exists public.se_daily_report (
   category    text not null default '',
   alloc_value numeric,
   alloc_unit  text not null default 'jam'
-              check (alloc_unit in ('jam', 'persen')),
+              check (alloc_unit in ('jam', 'menit')),
   created_at  timestamptz not null default now(),
   updated_at  timestamptz
 );
@@ -442,6 +442,17 @@ create index if not exists se_daily_report_date_idx
   on public.se_daily_report (report_date);
 create index if not exists se_daily_report_person_idx
   on public.se_daily_report (person_id);
+
+-- Dulu satuannya 'jam' | 'persen'; sekarang 'jam' | 'menit'. Migrasi baris
+-- lama + swap CHECK constraint (aman di-run ulang).
+alter table public.se_daily_report
+  drop constraint if exists se_daily_report_alloc_unit_check;
+update public.se_daily_report
+  set alloc_unit = 'jam'
+  where alloc_unit is null or alloc_unit not in ('jam', 'menit');
+alter table public.se_daily_report
+  add constraint se_daily_report_alloc_unit_check
+  check (alloc_unit in ('jam', 'menit'));
 
 alter table public.se_daily_report enable row level security;
 

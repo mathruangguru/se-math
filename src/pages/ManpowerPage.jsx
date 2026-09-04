@@ -56,6 +56,14 @@ function monthStartStr() {
 
 const fmtNum = (n) => String(Math.round(Number(n) * 10) / 10);
 
+// Alokasi entri -> jam (menit dikonversi). Kosong = 0.
+function toHours(r) {
+  if (r.alloc_value === null || r.alloc_value === undefined || r.alloc_value === "")
+    return 0;
+  const v = Number(r.alloc_value);
+  return r.alloc_unit === "menit" ? v / 60 : v;
+}
+
 export default function ManpowerPage() {
   const { profile, isAdmin } = useAuth();
   const myId = profile?.id ?? null;
@@ -126,12 +134,7 @@ export default function ManpowerPage() {
     }
     const arr = [...byP.entries()].map(([pid, entries]) => {
       const person = personById.get(pid);
-      const totalJam = entries.reduce(
-        (s, e) =>
-          s +
-          (e.alloc_unit === "jam" && e.alloc_value ? Number(e.alloc_value) : 0),
-        0
-      );
+      const totalJam = entries.reduce((s, e) => s + toHours(e), 0);
       return {
         pid,
         name: person ? personName(person) : "Tanpa nama",
@@ -148,11 +151,10 @@ export default function ManpowerPage() {
     const cats = new Set();
     const perPerson = new Map();
     let grandJam = 0;
-    let pctCount = 0;
     for (const r of rows) {
       const cat = (r.category ?? "").trim() || UNCAT;
-      const isJam = r.alloc_unit === "jam" && r.alloc_value != null;
-      if (isJam) cats.add(cat);
+      const h = toHours(r);
+      if (h > 0) cats.add(cat);
       if (!perPerson.has(r.person_id)) {
         const p = personById.get(r.person_id);
         perPerson.set(r.person_id, {
@@ -164,13 +166,10 @@ export default function ManpowerPage() {
       }
       const pp = perPerson.get(r.person_id);
       pp.entries += 1;
-      if (isJam) {
-        const v = Number(r.alloc_value);
-        pp.byCat.set(cat, (pp.byCat.get(cat) ?? 0) + v);
-        pp.totalJam += v;
-        grandJam += v;
-      } else if (r.alloc_unit === "persen") {
-        pctCount += 1;
+      if (h > 0) {
+        pp.byCat.set(cat, (pp.byCat.get(cat) ?? 0) + h);
+        pp.totalJam += h;
+        grandJam += h;
       }
     }
     const catList = [...cats].sort((a, b) =>
@@ -184,14 +183,7 @@ export default function ManpowerPage() {
     const catTotals = catList.map((c) =>
       list.reduce((s, p) => s + (p.byCat.get(c) ?? 0), 0)
     );
-    return {
-      catList,
-      list,
-      catTotals,
-      grandJam,
-      pctCount,
-      entryCount: rows.length,
-    };
+    return { catList, list, catTotals, grandJam, entryCount: rows.length };
   }, [rows, personById]);
 
   const categories = useMemo(() => {
@@ -376,12 +368,12 @@ export default function ManpowerPage() {
           />
           <button
             onClick={() => {
-              setFrom(monthStartStr());
+              setFrom(todayStr());
               setTo(todayStr());
             }}
             className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
           >
-            Bulan ini
+            Hari ini
           </button>
           <button
             onClick={() => {
@@ -391,6 +383,15 @@ export default function ManpowerPage() {
             className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
           >
             7 hari
+          </button>
+          <button
+            onClick={() => {
+              setFrom(monthStartStr());
+              setTo(todayStr());
+            }}
+            className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+          >
+            Bulan ini
           </button>
         </div>
       )}
@@ -444,11 +445,11 @@ export default function ManpowerPage() {
               <div className="mt-1 flex gap-2">
                 <input
                   type="number"
-                  step="0.5"
+                  step={form.alloc_unit === "menit" ? "5" : "0.5"}
                   min="0"
                   value={form.alloc_value}
                   onChange={(e) => set("alloc_value", e.target.value)}
-                  placeholder="4"
+                  placeholder={form.alloc_unit === "menit" ? "30" : "4"}
                   className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-brand-500"
                 />
                 <select
@@ -457,7 +458,7 @@ export default function ManpowerPage() {
                   className="rounded-lg border border-zinc-300 px-2 py-2 text-sm text-zinc-900 outline-none focus:border-brand-500"
                 >
                   <option value="jam">jam</option>
-                  <option value="persen">%</option>
+                  <option value="menit">menit</option>
                 </select>
               </div>
             </label>
@@ -539,7 +540,7 @@ export default function ManpowerPage() {
                           {r.alloc_value != null && (
                             <span>
                               {fmtNum(r.alloc_value)}{" "}
-                              {r.alloc_unit === "jam" ? "jam" : "%"}
+                              {r.alloc_unit === "menit" ? "menit" : "jam"}
                             </span>
                           )}
                         </div>
@@ -575,8 +576,6 @@ export default function ManpowerPage() {
         <div className="flex flex-col gap-3">
           <p className="text-xs text-zinc-400">
             {fmtNum(rekap.grandJam)} jam · {rekap.entryCount} entri
-            {rekap.pctCount > 0 &&
-              ` · ${rekap.pctCount} entri pakai % (di luar hitungan jam)`}
           </p>
           <div className="scroll-slim overflow-x-auto rounded-2xl border border-zinc-200/80 bg-white">
             <table className="w-full min-w-[560px] border-collapse text-left">
