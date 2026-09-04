@@ -15,7 +15,7 @@ function clean(row) {
     activity: (row.activity ?? "").trim(),
     category: (row.category ?? "").trim(),
     alloc_value: v === "" || v === null || v === undefined ? null : Number(v),
-    alloc_unit: row.alloc_unit === "persen" ? "persen" : "jam",
+    alloc_unit: row.alloc_unit === "menit" ? "menit" : "jam",
   };
 }
 
