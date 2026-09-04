@@ -104,10 +104,16 @@ kelolanya inline di kartu.
 ## Manpower Allocation — `/manpower`
 
 Laporan harian: tiap entri = tanggal + kegiatan + kategori/stream +
-alokasi (jam / %). Pilih tanggal (ada tombol ‹ › + "Hari ini"), lihat
-entri dikelompokkan **per orang** (header nunjukin total jam). Tiap member
-**isi & lihat entri sendiri**; **admin** lihat rekap semua orang. Edit/
-hapus: punya sendiri atau admin. Murni RLS, tanpa halaman admin terpisah.
+alokasi (jam / %). Dua mode:
+
+- **Harian** — pilih tanggal (‹ › + "Hari ini"), entri dikelompokkan
+  **per orang** (header = total jam). Tambah/edit/hapus di sini.
+- **Rekap** — pilih rentang tanggal ("Bulan ini" / "7 hari"), matriks
+  **orang × kategori** total jam + baris/kolom Total. Entri `%` nggak
+  ikut dijumlah (dihitung terpisah).
+
+Tiap member **isi & lihat entri sendiri**; **admin** lihat semua orang
+(termasuk rekap). Edit/hapus: punya sendiri atau admin. Murni RLS.
 
 ## Isi
 
