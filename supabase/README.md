@@ -20,6 +20,8 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
      punya siapa aja. Murni policy, tanpa RPC.
    - `se_daily_report` + RLS — Manpower Allocation (laporan harian). Member
      isi & baca punya sendiri; admin baca semua. Murni policy, tanpa RPC.
+   - `se_leave` + RLS — cuti / sakit / izin. Tabel bareng: semua yang login
+     lihat, semua member isi/edit/hapus buat siapa aja.
    - `se_task` + `se_subtask` + `se_subtask_assignee` (assignee per-subtask,
      boleh > 1 orang) + RLS (baca user login, tulis `se_is_admin()`) +
      `se_task_set_status(id, status)` / `se_subtask_set_done(id, done)` /
@@ -115,16 +117,22 @@ alokasi durasi (jam / menit). Dua mode:
 Tiap member **isi & lihat entri sendiri**; **admin** lihat semua orang
 (termasuk rekap). Edit/hapus: punya sendiri atau admin. Murni RLS.
 
+**Cuti / sakit / izin** (`se_leave`, tombol "Catat cuti/izin"): tabel
+bareng — **semua yang login lihat**, **semua member bisa isi/edit/hapus
+buat siapa aja** (rentang tanggal + catatan). Tampil sebagai panel
+"Cuti & izin" di kedua mode.
+
 ## Isi
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_joke` + `se_daily_report` + `se_task` / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_joke` + `se_daily_report` + `se_leave` + `se_task` / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 (list/create/update/delete/bulkCreate), `src/lib/links.js`
 (list/create/update/delete), `src/lib/jokes.js` (list/create/update/delete),
 `src/lib/daily.js` (laporan harian: list/create/update/delete),
+`src/lib/leave.js` (cuti/izin: list/create/update/delete),
 `src/lib/tasks.js` (task + subtask + subtask-assignee: list/create/update/delete +
 `setTaskStatus` / `setSubtaskDone` / `setSubtaskAssignees` rpc),
 `src/lib/people.js` (list orang buat assignee), `src/lib/members.js`
