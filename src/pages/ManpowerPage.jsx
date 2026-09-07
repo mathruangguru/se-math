@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
+  CalendarOff,
   ChevronLeft,
   ChevronRight,
   Pencil,
@@ -20,6 +21,12 @@ import {
   updateDailyReport,
   deleteDailyReport,
 } from "../lib/daily";
+import {
+  listLeaves,
+  createLeave,
+  updateLeave,
+  deleteLeave,
+} from "../lib/leave";
 
 const fieldCls =
   "mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-brand-500";
@@ -31,6 +38,20 @@ const MODES = [
 
 const UNCAT = "Tanpa kategori";
 
+const KINDS = [
+  { value: "cuti", label: "Cuti" },
+  { value: "sakit", label: "Sakit" },
+  { value: "izin", label: "Izin" },
+  { value: "lainnya", label: "Lainnya" },
+];
+const KIND_CLS = {
+  cuti: "bg-sky-100 text-sky-700",
+  sakit: "bg-rose-100 text-rose-700",
+  izin: "bg-amber-100 text-amber-700",
+  lainnya: "bg-zinc-100 text-zinc-600",
+};
+const kindLabel = (k) => KINDS.find((x) => x.value === k)?.label ?? k;
+
 function emptyForm(date) {
   return {
     id: null,
@@ -39,6 +60,17 @@ function emptyForm(date) {
     category: "",
     alloc_value: "",
     alloc_unit: "jam",
+  };
+}
+
+function emptyLeave(person, date) {
+  return {
+    id: null,
+    person_id: person ?? "",
+    kind: "cuti",
+    start_date: date,
+    end_date: date,
+    note: "",
   };
 }
 
@@ -55,10 +87,16 @@ function monthStartStr() {
 }
 
 const fmtNum = (n) => String(Math.round(Number(n) * 10) / 10);
+const rangeLabel = (s, e) =>
+  s === e ? shortDate(s) : `${shortDate(s)}–${shortDate(e)}`;
 
 // Alokasi entri -> jam (menit dikonversi). Kosong = 0.
 function toHours(r) {
-  if (r.alloc_value === null || r.alloc_value === undefined || r.alloc_value === "")
+  if (
+    r.alloc_value === null ||
+    r.alloc_value === undefined ||
+    r.alloc_value === ""
+  )
     return 0;
   const v = Number(r.alloc_value);
   return r.alloc_unit === "menit" ? v / 60 : v;
@@ -74,6 +112,7 @@ export default function ManpowerPage() {
   const [to, setTo] = useState(todayStr); // rekap
 
   const [rows, setRows] = useState([]);
+  const [leaves, setLeaves] = useState([]);
   const [people, setPeople] = useState([]);
   const [status, setStatus] = useState("loading"); // loading | error | ready
   const [msg, setMsg] = useState(null); // { ok, text }
@@ -84,6 +123,11 @@ export default function ManpowerPage() {
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [leaveForm, setLeaveForm] = useState(() => emptyLeave("", todayStr()));
+  const [showLeave, setShowLeave] = useState(false);
+  const [leaveError, setLeaveError] = useState("");
+  const [leaveSaving, setLeaveSaving] = useState(false);
+
   // Reset status pas rentang berubah (adjust state saat render).
   const viewKey = mode === "harian" ? date : `${from}|${to}`;
   const [prevViewKey, setPrevViewKey] = useState(viewKey);
@@ -91,6 +135,7 @@ export default function ManpowerPage() {
     setPrevViewKey(viewKey);
     setStatus("loading");
     setRows([]);
+    setLeaves([]);
   }
 
   useEffect(() => {
@@ -103,10 +148,14 @@ export default function ManpowerPage() {
     const rFrom = mode === "harian" ? date : from;
     const rTo = mode === "harian" ? date : to;
     let alive = true;
-    listDailyReports({ from: rFrom, to: rTo })
-      .then((d) => {
+    Promise.all([
+      listDailyReports({ from: rFrom, to: rTo }),
+      listLeaves({ from: rFrom, to: rTo }).catch(() => []),
+    ])
+      .then(([d, l]) => {
         if (!alive) return;
         setRows(d);
+        setLeaves(l);
         setStatus("ready");
       })
       .catch((err) => {
@@ -186,6 +235,21 @@ export default function ManpowerPage() {
     return { catList, list, catTotals, grandJam, entryCount: rows.length };
   }, [rows, personById]);
 
+  const leavesSorted = useMemo(() => {
+    const arr = [...leaves];
+    arr.sort((a, b) => {
+      if (a.start_date !== b.start_date)
+        return a.start_date < b.start_date ? -1 : 1;
+      const an = personById.get(a.person_id);
+      const bn = personById.get(b.person_id);
+      return (an ? personName(an) : "").localeCompare(
+        bn ? personName(bn) : "",
+        "id"
+      );
+    });
+    return arr;
+  }, [leaves, personById]);
+
   const categories = useMemo(() => {
     const s = new Set();
     for (const r of rows) {
@@ -196,6 +260,7 @@ export default function ManpowerPage() {
   }, [rows]);
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+  const setLF = (key, val) => setLeaveForm((f) => ({ ...f, [key]: val }));
 
   const openCreate = () => {
     setForm(emptyForm(date));
@@ -215,8 +280,32 @@ export default function ManpowerPage() {
     setShowForm(true);
   };
 
+  const openLeaveCreate = () => {
+    setLeaveForm(emptyLeave(myId ?? "", mode === "harian" ? date : to));
+    setLeaveError("");
+    setShowLeave(true);
+  };
+  const openLeaveEdit = (l) => {
+    setLeaveForm({
+      id: l.id,
+      person_id: l.person_id,
+      kind: l.kind,
+      start_date: l.start_date,
+      end_date: l.end_date,
+      note: l.note,
+    });
+    setLeaveError("");
+    setShowLeave(true);
+  };
+
   const inRange = (d) =>
     mode === "harian" ? d === date : d >= from && d <= to;
+
+  const leaveOverlapsView = (l) => {
+    const vFrom = mode === "harian" ? date : from;
+    const vTo = mode === "harian" ? date : to;
+    return l.start_date <= vTo && l.end_date >= vFrom;
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -276,7 +365,123 @@ export default function ManpowerPage() {
     }
   };
 
+  const handleLeaveSave = async (e) => {
+    e.preventDefault();
+    setLeaveError("");
+    if (!leaveForm.person_id) {
+      setLeaveError("Pilih orang dulu.");
+      return;
+    }
+    if (!leaveForm.start_date || !leaveForm.end_date) {
+      setLeaveError("Tanggal wajib diisi.");
+      return;
+    }
+    setLeaveSaving(true);
+    try {
+      if (leaveForm.id) {
+        const updated = await updateLeave(leaveForm.id, leaveForm);
+        if (leaveOverlapsView(updated)) {
+          setLeaves((p) => p.map((x) => (x.id === updated.id ? updated : x)));
+        } else {
+          setLeaves((p) => p.filter((x) => x.id !== updated.id));
+          setMsg({ ok: true, text: "Cuti/izin diperbarui (di luar rentang)." });
+        }
+      } else {
+        const created = await createLeave(leaveForm);
+        if (leaveOverlapsView(created)) {
+          setLeaves((p) => [...p, created]);
+        } else {
+          setMsg({ ok: true, text: "Cuti/izin dicatat (di luar rentang)." });
+        }
+      }
+      setShowLeave(false);
+    } catch (err) {
+      setLeaveError(err?.message ?? "Gagal menyimpan.");
+    } finally {
+      setLeaveSaving(false);
+    }
+  };
+
+  const handleLeaveDelete = async (l) => {
+    if (!window.confirm("Hapus catatan cuti/izin ini?")) return;
+    setRowBusyId(l.id);
+    try {
+      await deleteLeave(l.id);
+      setLeaves((p) => p.filter((x) => x.id !== l.id));
+    } catch (err) {
+      window.alert(`Gagal menghapus: ${err?.message ?? err}`);
+    } finally {
+      setRowBusyId(null);
+    }
+  };
+
   const isToday = date === todayStr();
+
+  const leaveBtn = (
+    <button
+      onClick={openLeaveCreate}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+    >
+      <CalendarOff size={14} /> Catat cuti/izin
+    </button>
+  );
+
+  const leaveSection = leavesSorted.length > 0 && (
+    <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white">
+      <div className="border-b border-zinc-100 px-4 py-2.5 text-xs font-semibold text-zinc-600">
+        Cuti &amp; izin{mode === "rekap" ? " di rentang ini" : ""}
+      </div>
+      <div className="divide-y divide-zinc-100">
+        {leavesSorted.map((l) => {
+          const p = personById.get(l.person_id);
+          const name = p ? personName(p) : "Tanpa nama";
+          return (
+            <div
+              key={l.id}
+              className="group flex items-center gap-2.5 px-4 py-2.5"
+            >
+              <Avatar name={name} id={l.person_id} size={22} />
+              <span className="shrink-0 text-sm font-medium text-zinc-800">
+                {name}
+              </span>
+              <span
+                className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                  KIND_CLS[l.kind] ?? KIND_CLS.lainnya
+                }`}
+              >
+                {kindLabel(l.kind)}
+              </span>
+              <span className="shrink-0 text-xs text-zinc-400">
+                {rangeLabel(l.start_date, l.end_date)}
+              </span>
+              {l.note && (
+                <span className="min-w-0 truncate text-xs text-zinc-400">
+                  · {l.note}
+                </span>
+              )}
+              <span className="ml-auto flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                <button
+                  onClick={() => openLeaveEdit(l)}
+                  aria-label="Ubah"
+                  className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                >
+                  <Pencil size={13} />
+                </button>
+                <button
+                  onClick={() => handleLeaveDelete(l)}
+                  disabled={rowBusyId === l.id}
+                  aria-label="Hapus"
+                  className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div className="mx-auto flex max-w-[980px] flex-col gap-6">
@@ -287,8 +492,8 @@ export default function ManpowerPage() {
           </h1>
           <p className="mt-1 text-xs leading-relaxed text-zinc-500">
             {isAdmin
-              ? "Laporan harian tim — siapa ngerjain apa per hari."
-              : "Laporan harian kamu. Cuma admin yang lihat rekap semua orang."}
+              ? "Laporan harian tim — siapa ngerjain apa per hari. Cuti/izin kelihatan semua orang."
+              : "Laporan harian kamu (rekap semua orang: admin). Cuti/izin kelihatan & bisa diisi semua orang."}
           </p>
         </div>
         <SegmentedControl options={MODES} value={mode} onChange={setMode} />
@@ -304,7 +509,6 @@ export default function ManpowerPage() {
 
       {mode === "harian" ? (
         <>
-          {/* Bar tanggal */}
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setDate((d) => shiftDate(d, -1))}
@@ -336,19 +540,21 @@ export default function ManpowerPage() {
                 Hari ini
               </button>
             )}
-            <button
-              onClick={openCreate}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-600 sm:ml-auto"
-            >
-              <Plus size={14} strokeWidth={2.6} /> Tambah entri
-            </button>
+            <div className="flex gap-2 sm:ml-auto">
+              {leaveBtn}
+              <button
+                onClick={openCreate}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-600"
+              >
+                <Plus size={14} strokeWidth={2.6} /> Tambah entri
+              </button>
+            </div>
           </div>
           <p className="-mt-3 text-xs capitalize text-zinc-400">
             {fullDate(date)}
           </p>
         </>
       ) : (
-        /* Bar rentang */
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <input
             type="date"
@@ -393,11 +599,11 @@ export default function ManpowerPage() {
           >
             Bulan ini
           </button>
+          <span className="sm:ml-auto">{leaveBtn}</span>
         </div>
       )}
 
-      {/* Form (dipakai di mode harian; tetap bisa dibuka lewat edit di rekap
-          nggak ada, jadi cukup di sini) */}
+      {/* Form entri harian */}
       <Modal
         open={showForm}
         onClose={() => setShowForm(false)}
@@ -485,6 +691,94 @@ export default function ManpowerPage() {
         </form>
       </Modal>
 
+      {/* Form cuti / izin */}
+      <Modal
+        open={showLeave}
+        onClose={() => setShowLeave(false)}
+        title={leaveForm.id ? "Ubah cuti/izin" : "Catat cuti/izin"}
+      >
+        <form onSubmit={handleLeaveSave} className="flex flex-col gap-3">
+          <label className="block text-xs font-medium text-zinc-600">
+            Orang
+            <select
+              value={leaveForm.person_id}
+              onChange={(e) => setLF("person_id", e.target.value)}
+              className={fieldCls}
+            >
+              <option value="">— pilih —</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {personName(p)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block text-xs font-medium text-zinc-600">
+              Jenis
+              <select
+                value={leaveForm.kind}
+                onChange={(e) => setLF("kind", e.target.value)}
+                className={fieldCls}
+              >
+                {KINDS.map((k) => (
+                  <option key={k.value} value={k.value}>
+                    {k.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs font-medium text-zinc-600">
+              Dari
+              <input
+                type="date"
+                value={leaveForm.start_date}
+                onChange={(e) => setLF("start_date", e.target.value)}
+                className={fieldCls}
+              />
+            </label>
+            <label className="block text-xs font-medium text-zinc-600">
+              Sampai
+              <input
+                type="date"
+                value={leaveForm.end_date}
+                min={leaveForm.start_date}
+                onChange={(e) => setLF("end_date", e.target.value)}
+                className={fieldCls}
+              />
+            </label>
+          </div>
+          <label className="block text-xs font-medium text-zinc-600">
+            Catatan (opsional)
+            <input
+              value={leaveForm.note}
+              onChange={(e) => setLF("note", e.target.value)}
+              placeholder="mis. demam, acara keluarga"
+              className={fieldCls}
+            />
+          </label>
+
+          {leaveError && <p className="text-xs text-rose-600">{leaveError}</p>}
+
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="submit"
+              disabled={leaveSaving}
+              className="rounded-lg bg-brand-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-50"
+            >
+              {leaveSaving ? "Menyimpan…" : "Simpan"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowLeave(false)}
+              className="rounded-lg px-4 py-2 text-xs font-semibold text-zinc-600 transition-colors hover:bg-zinc-100"
+            >
+              Batal
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Isi */}
       {status === "loading" ? (
         <div className="flex flex-col gap-2">
@@ -496,144 +790,158 @@ export default function ManpowerPage() {
         <p className="rounded-2xl border border-dashed border-rose-300 bg-white px-6 py-12 text-center text-sm text-rose-500">
           Gagal memuat data.
         </p>
-      ) : rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm text-zinc-400">
-          {mode === "harian"
-            ? "Belum ada laporan buat tanggal ini."
-            : "Belum ada laporan di rentang ini."}
-        </p>
-      ) : mode === "harian" ? (
-        <div className="flex flex-col gap-3">
-          {groups.map((g) => (
-            <div
-              key={g.pid}
-              className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white"
-            >
-              <div className="flex items-center gap-2.5 border-b border-zinc-100 px-4 py-2.5">
-                <Avatar name={g.name} id={g.pid} size={24} />
-                <span className="text-sm font-semibold text-zinc-900">
-                  {g.name}
-                </span>
-                {g.totalJam > 0 && (
-                  <span className="ml-auto text-xs text-zinc-400">
-                    {fmtNum(g.totalJam)} jam
-                  </span>
-                )}
-              </div>
-              <div className="divide-y divide-zinc-100">
-                {g.entries.map((r) => (
-                  <div
-                    key={r.id}
-                    className="group flex items-start gap-3 px-4 py-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="whitespace-pre-wrap text-sm text-zinc-800">
-                        {r.activity || "—"}
-                      </p>
-                      {(r.category || r.alloc_value != null) && (
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
-                          {r.category && (
-                            <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-600">
-                              {r.category}
-                            </span>
-                          )}
-                          {r.alloc_value != null && (
-                            <span>
-                              {fmtNum(r.alloc_value)}{" "}
-                              {r.alloc_unit === "menit" ? "menit" : "jam"}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {(isAdmin || r.person_id === myId) && (
-                      <span className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                        <button
-                          onClick={() => openEdit(r)}
-                          aria-label="Ubah"
-                          className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(r)}
-                          disabled={rowBusyId === r.id}
-                          aria-label="Hapus"
-                          className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {leaveSection}
+
+          {rows.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm text-zinc-400">
+              {leavesSorted.length > 0
+                ? "Belum ada laporan aktivitas."
+                : mode === "harian"
+                  ? "Belum ada laporan buat tanggal ini."
+                  : "Belum ada laporan di rentang ini."}
+            </p>
+          ) : mode === "harian" ? (
+            <div className="flex flex-col gap-3">
+              {groups.map((g) => (
+                <div
+                  key={g.pid}
+                  className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white"
+                >
+                  <div className="flex items-center gap-2.5 border-b border-zinc-100 px-4 py-2.5">
+                    <Avatar name={g.name} id={g.pid} size={24} />
+                    <span className="text-sm font-semibold text-zinc-900">
+                      {g.name}
+                    </span>
+                    {g.totalJam > 0 && (
+                      <span className="ml-auto text-xs text-zinc-400">
+                        {fmtNum(g.totalJam)} jam
                       </span>
                     )}
                   </div>
-                ))}
+                  <div className="divide-y divide-zinc-100">
+                    {g.entries.map((r) => (
+                      <div
+                        key={r.id}
+                        className="group flex items-start gap-3 px-4 py-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="whitespace-pre-wrap text-sm text-zinc-800">
+                            {r.activity || "—"}
+                          </p>
+                          {(r.category || r.alloc_value != null) && (
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                              {r.category && (
+                                <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-600">
+                                  {r.category}
+                                </span>
+                              )}
+                              {r.alloc_value != null && (
+                                <span>
+                                  {fmtNum(r.alloc_value)}{" "}
+                                  {r.alloc_unit === "menit" ? "menit" : "jam"}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {(isAdmin || r.person_id === myId) && (
+                          <span className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                            <button
+                              onClick={() => openEdit(r)}
+                              aria-label="Ubah"
+                              className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(r)}
+                              disabled={rowBusyId === r.id}
+                              aria-label="Hapus"
+                              className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p className="text-xs text-zinc-400">
+                {fmtNum(rekap.grandJam)} jam · {rekap.entryCount} entri
+              </p>
+              <div className="scroll-slim overflow-x-auto rounded-2xl border border-zinc-200/80 bg-white">
+                <table className="w-full min-w-[560px] border-collapse text-left">
+                  <thead>
+                    <tr className="bg-zinc-50 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                      <th className="px-4 py-3">Orang</th>
+                      {rekap.catList.map((c) => (
+                        <th
+                          key={c}
+                          className="whitespace-nowrap px-3 py-3 text-right"
+                        >
+                          {c}
+                        </th>
+                      ))}
+                      <th className="px-4 py-3 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rekap.list.map((p) => (
+                      <tr
+                        key={p.pid}
+                        className="border-t border-zinc-100 transition-colors hover:bg-zinc-50"
+                      >
+                        <td className="whitespace-nowrap px-4 py-2.5 text-sm text-zinc-800">
+                          {p.name}
+                        </td>
+                        {rekap.catList.map((c) => {
+                          const v = p.byCat.get(c) ?? 0;
+                          return (
+                            <td
+                              key={c}
+                              className="px-3 py-2.5 text-right text-sm tabular-nums text-zinc-600"
+                            >
+                              {v ? (
+                                fmtNum(v)
+                              ) : (
+                                <span className="text-zinc-300">·</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-2.5 text-right text-sm font-semibold tabular-nums text-zinc-900">
+                          {fmtNum(p.totalJam)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-zinc-200 bg-zinc-50 text-sm font-semibold text-zinc-900">
+                      <td className="px-4 py-2.5">Total</td>
+                      {rekap.catTotals.map((v, i) => (
+                        <td
+                          key={rekap.catList[i]}
+                          className="px-3 py-2.5 text-right tabular-nums"
+                        >
+                          {v ? fmtNum(v) : "·"}
+                        </td>
+                      ))}
+                      <td className="px-4 py-2.5 text-right tabular-nums">
+                        {fmtNum(rekap.grandJam)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        /* Rekap: matriks orang × kategori */
-        <div className="flex flex-col gap-3">
-          <p className="text-xs text-zinc-400">
-            {fmtNum(rekap.grandJam)} jam · {rekap.entryCount} entri
-          </p>
-          <div className="scroll-slim overflow-x-auto rounded-2xl border border-zinc-200/80 bg-white">
-            <table className="w-full min-w-[560px] border-collapse text-left">
-              <thead>
-                <tr className="bg-zinc-50 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                  <th className="px-4 py-3">Orang</th>
-                  {rekap.catList.map((c) => (
-                    <th key={c} className="whitespace-nowrap px-3 py-3 text-right">
-                      {c}
-                    </th>
-                  ))}
-                  <th className="px-4 py-3 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rekap.list.map((p) => (
-                  <tr
-                    key={p.pid}
-                    className="border-t border-zinc-100 transition-colors hover:bg-zinc-50"
-                  >
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-zinc-800">
-                      {p.name}
-                    </td>
-                    {rekap.catList.map((c) => {
-                      const v = p.byCat.get(c) ?? 0;
-                      return (
-                        <td
-                          key={c}
-                          className="px-3 py-2.5 text-right text-sm tabular-nums text-zinc-600"
-                        >
-                          {v ? fmtNum(v) : <span className="text-zinc-300">·</span>}
-                        </td>
-                      );
-                    })}
-                    <td className="px-4 py-2.5 text-right text-sm font-semibold tabular-nums text-zinc-900">
-                      {fmtNum(p.totalJam)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-zinc-200 bg-zinc-50 text-sm font-semibold text-zinc-900">
-                  <td className="px-4 py-2.5">Total</td>
-                  {rekap.catTotals.map((v, i) => (
-                    <td
-                      key={rekap.catList[i]}
-                      className="px-3 py-2.5 text-right tabular-nums"
-                    >
-                      {v ? fmtNum(v) : "·"}
-                    </td>
-                  ))}
-                  <td className="px-4 py-2.5 text-right tabular-nums">
-                    {fmtNum(rekap.grandJam)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          )}
         </div>
       )}
     </div>

@@ -480,6 +480,39 @@ create policy "se_daily_report delete own or admin"
   on public.se_daily_report for delete
   using (person_id = auth.uid() or public.se_is_admin());
 
+-- ── se_leave: cuti / sakit / izin ────────────────────────────────
+-- Tabel bareng: semua yang login bisa LIHAT; semua member bisa isi /
+-- edit / hapus buat SIAPA AJA. Murni policy, tanpa RPC.
+
+create table if not exists public.se_leave (
+  id          uuid primary key default gen_random_uuid(),
+  person_id   uuid not null references public.se_profile (id) on delete cascade,
+  kind        text not null default 'cuti'
+              check (kind in ('cuti', 'sakit', 'izin', 'lainnya')),
+  start_date  date not null default current_date,
+  end_date    date not null default current_date,
+  note        text not null default '',
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz
+);
+create index if not exists se_leave_person_idx on public.se_leave (person_id);
+create index if not exists se_leave_range_idx
+  on public.se_leave (start_date, end_date);
+
+alter table public.se_leave enable row level security;
+
+grant select, insert, update, delete on public.se_leave to authenticated;
+grant all on public.se_leave to service_role;
+
+drop policy if exists "se_leave read" on public.se_leave;
+create policy "se_leave read"
+  on public.se_leave for select using (auth.uid() is not null);
+
+drop policy if exists "se_leave write member" on public.se_leave;
+create policy "se_leave write member"
+  on public.se_leave for all
+  using (public.se_is_member()) with check (public.se_is_member());
+
 -- ── Bootstrap admin pertama ─────────────────────────────────────────
 -- User-nya harus sudah ada di auth.users (pernah login coaching-math, atau
 -- dibuat lewat Authentication -> Users -> Add user). Ganti email, uncomment,
