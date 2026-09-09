@@ -1,6 +1,6 @@
 import { supabase, hasSupabase } from "./supabase";
 
-const P_COLS = "id, title, detail, eta, created_by, created_at";
+const P_COLS = "id, title, detail, eta, source, created_by, created_at";
 const PAGE = 1000;
 
 function ensure() {
@@ -12,6 +12,7 @@ function clean(row) {
     title: (row.title ?? "").trim(),
     detail: (row.detail ?? "").trim(),
     eta: (row.eta ?? "").trim(),
+    source: (row.source ?? "").trim(),
   };
 }
 
