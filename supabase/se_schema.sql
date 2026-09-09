@@ -522,10 +522,14 @@ create table if not exists public.se_potential_work (
   title       text not null default '',
   detail      text not null default '',
   eta         text not null default '',
+  source      text not null default '',
   created_by  uuid references public.se_profile (id) on delete set null,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz
 );
+-- Kolom baru buat tabel yang terlanjur dibuat sebelum ada `source`.
+alter table public.se_potential_work
+  add column if not exists source text not null default '';
 create index if not exists se_potential_work_created_idx
   on public.se_potential_work (created_at desc);
 

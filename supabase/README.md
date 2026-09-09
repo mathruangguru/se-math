@@ -100,9 +100,11 @@ Menu **Link** buat semua user login mengelompokkan link per kategori.
 ## Potential Work — `/potential`
 
 Watch-list kerjaan yang **kemungkinan bakal masuk** — biar nggak lupa.
-Tiap item: judul + catatan + perkiraan waktu (teks bebas, mis. "abis
-Tryout Ep 3"). Tabel bareng (`se_potential_work`): **semua yang login
-lihat, semua member nambah/edit/hapus**. Terbaru dulu + search.
+Tiap item: judul + catatan + perkiraan waktu + sumber (teks bebas, mis.
+"abis Tryout Ep 3" / "rapat mingguan"). Grid 2 kolom, deskripsi keliat 2
+baris — klik kartu buka modal detail. Tabel bareng (`se_potential_work`):
+**semua yang login lihat, semua member nambah/edit/hapus**. Terbaru dulu
++ search.
 
 ## Pojok Jokes — `/jokes`
 

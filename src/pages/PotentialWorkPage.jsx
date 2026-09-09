@@ -11,7 +11,7 @@ import {
   deletePotentialWork,
 } from "../lib/potential";
 
-const emptyForm = { id: null, title: "", detail: "", eta: "" };
+const emptyForm = { id: null, title: "", detail: "", eta: "", source: "" };
 const fieldCls =
   "mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-brand-500";
 
@@ -30,6 +30,8 @@ export default function PotentialWorkPage() {
   const [showForm, setShowForm] = useState(false);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const [detailItem, setDetailItem] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -63,7 +65,8 @@ export default function PotentialWorkPage() {
       (r) =>
         r.title.toLowerCase().includes(needle) ||
         r.detail.toLowerCase().includes(needle) ||
-        r.eta.toLowerCase().includes(needle)
+        r.eta.toLowerCase().includes(needle) ||
+        (r.source ?? "").toLowerCase().includes(needle)
     );
   }, [rows, q]);
 
@@ -75,7 +78,13 @@ export default function PotentialWorkPage() {
     setShowForm(true);
   };
   const openEdit = (r) => {
-    setForm({ id: r.id, title: r.title, detail: r.detail, eta: r.eta });
+    setForm({
+      id: r.id,
+      title: r.title,
+      detail: r.detail,
+      eta: r.eta,
+      source: r.source ?? "",
+    });
     setFormError("");
     setShowForm(true);
   };
@@ -112,6 +121,7 @@ export default function PotentialWorkPage() {
     try {
       await deletePotentialWork(r.id);
       setRows((p) => p.filter((x) => x.id !== r.id));
+      setDetailItem((d) => (d?.id === r.id ? null : d));
     } catch (err) {
       window.alert(`Gagal menghapus: ${err?.message ?? err}`);
     } finally {
@@ -194,6 +204,15 @@ export default function PotentialWorkPage() {
               className={fieldCls}
             />
           </label>
+          <label className="block text-xs font-medium text-zinc-600">
+            Sumber
+            <input
+              value={form.source}
+              onChange={(e) => set("source", e.target.value)}
+              placeholder="mis. rapat mingguan, obrolan sama Pak Budi, link doc"
+              className={fieldCls}
+            />
+          </label>
 
           {formError && <p className="text-xs text-rose-600">{formError}</p>}
 
@@ -217,9 +236,9 @@ export default function PotentialWorkPage() {
       </Modal>
 
       {status === "loading" ? (
-        <div className="flex flex-col gap-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+            <Skeleton key={i} className="h-28 w-full rounded-2xl" />
           ))}
         </div>
       ) : status === "error" ? (
@@ -235,57 +254,107 @@ export default function PotentialWorkPage() {
           Nggak ada yang cocok.
         </p>
       ) : (
-        <div className="flex flex-col gap-2.5">
+        <div className="grid gap-3 sm:grid-cols-2">
           {filtered.map((r) => {
             const by = r.created_by ? personById.get(r.created_by) : null;
             return (
               <div
                 key={r.id}
-                className="group rounded-2xl border border-zinc-200/80 bg-white p-4"
+                role="button"
+                tabIndex={0}
+                onClick={() => setDetailItem(r)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setDetailItem(r);
+                  }
+                }}
+                className="flex cursor-pointer flex-col rounded-2xl border border-zinc-200/80 bg-white p-4 text-left transition-shadow hover:shadow-sm"
               >
-                <div className="flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold leading-snug text-zinc-900">
-                      {r.title}
-                    </p>
-                    {r.detail && (
-                      <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-zinc-500">
-                        {r.detail}
-                      </p>
-                    )}
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400">
-                      {r.eta && (
-                        <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-600">
-                          <Clock size={11} />
-                          {r.eta}
-                        </span>
-                      )}
-                      {by && <span>— {personShort(by)}</span>}
-                    </div>
-                  </div>
-                  <span className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                    <button
-                      onClick={() => openEdit(r)}
-                      aria-label="Ubah"
-                      className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(r)}
-                      disabled={rowBusyId === r.id}
-                      aria-label="Hapus"
-                      className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </span>
+                <p className="text-sm font-semibold leading-snug text-zinc-900">
+                  {r.title}
+                </p>
+                {r.detail && (
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-zinc-500">
+                    {r.detail}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400">
+                  {r.eta && (
+                    <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-600">
+                      <Clock size={11} />
+                      {r.eta}
+                    </span>
+                  )}
+                  {r.source && (
+                    <span className="max-w-[45%] truncate">dari {r.source}</span>
+                  )}
+                  {by && <span>— {personShort(by)}</span>}
                 </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* Detail modal */}
+      <Modal
+        open={!!detailItem}
+        onClose={() => setDetailItem(null)}
+        title={detailItem?.title}
+      >
+        {detailItem && (
+          <div className="flex flex-col gap-3">
+            {detailItem.detail ? (
+              <p className="scroll-slim max-h-[50vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">
+                {detailItem.detail}
+              </p>
+            ) : (
+              <p className="text-sm text-zinc-400">Nggak ada catatan.</p>
+            )}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400">
+              {detailItem.eta && (
+                <span className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-600">
+                  <Clock size={11} />
+                  {detailItem.eta}
+                </span>
+              )}
+              {detailItem.source && <span>dari {detailItem.source}</span>}
+              {detailItem.created_by &&
+                personById.get(detailItem.created_by) && (
+                  <span>
+                    — {personShort(personById.get(detailItem.created_by))}
+                  </span>
+                )}
+            </div>
+            <div className="flex items-center gap-2 border-t border-zinc-100 pt-3">
+              <button
+                onClick={() => {
+                  const r = detailItem;
+                  setDetailItem(null);
+                  openEdit(r);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+              >
+                <Pencil size={13} /> Ubah
+              </button>
+              <button
+                onClick={() => handleDelete(detailItem)}
+                disabled={rowBusyId === detailItem.id}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-600 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+              >
+                <Trash2 size={13} /> Hapus
+              </button>
+              <button
+                onClick={() => setDetailItem(null)}
+                className="ml-auto rounded-lg px-3 py-2 text-xs font-semibold text-zinc-600 transition-colors hover:bg-zinc-100"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
