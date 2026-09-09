@@ -513,6 +513,36 @@ create policy "se_leave write member"
   on public.se_leave for all
   using (public.se_is_member()) with check (public.se_is_member());
 
+-- ── se_potential_work: watch-list kerjaan yang mungkin bakal masuk ─
+-- Tabel bareng: semua yang login lihat; semua member isi/edit/hapus.
+-- Murni policy, tanpa RPC.
+
+create table if not exists public.se_potential_work (
+  id          uuid primary key default gen_random_uuid(),
+  title       text not null default '',
+  detail      text not null default '',
+  eta         text not null default '',
+  created_by  uuid references public.se_profile (id) on delete set null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz
+);
+create index if not exists se_potential_work_created_idx
+  on public.se_potential_work (created_at desc);
+
+alter table public.se_potential_work enable row level security;
+
+grant select, insert, update, delete on public.se_potential_work to authenticated;
+grant all on public.se_potential_work to service_role;
+
+drop policy if exists "se_potential_work read" on public.se_potential_work;
+create policy "se_potential_work read"
+  on public.se_potential_work for select using (auth.uid() is not null);
+
+drop policy if exists "se_potential_work write member" on public.se_potential_work;
+create policy "se_potential_work write member"
+  on public.se_potential_work for all
+  using (public.se_is_member()) with check (public.se_is_member());
+
 -- ── Bootstrap admin pertama ─────────────────────────────────────────
 -- User-nya harus sudah ada di auth.users (pernah login coaching-math, atau
 -- dibuat lewat Authentication -> Users -> Add user). Ganti email, uncomment,

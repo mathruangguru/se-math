@@ -6,6 +6,7 @@ import {
   Link2,
   Laugh,
   ClipboardList,
+  Radar,
   Shield,
   Users,
   LogOut,
@@ -19,6 +20,7 @@ import { signOut } from "../../lib/auth";
 const mainNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/task", label: "Task", icon: ListChecks },
+  { to: "/potential", label: "Potential Work", icon: Radar },
   { to: "/manpower", label: "Manpower", icon: ClipboardList },
   { to: "/hyperlist", label: "Hyperlist", icon: ListTree },
   { to: "/link", label: "Link", icon: Link2 },

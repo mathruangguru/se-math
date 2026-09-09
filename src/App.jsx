@@ -9,6 +9,7 @@ import HyperlistPage from "./pages/HyperlistPage";
 import LinkPage from "./pages/LinkPage";
 import JokesPage from "./pages/JokesPage";
 import ManpowerPage from "./pages/ManpowerPage";
+import PotentialWorkPage from "./pages/PotentialWorkPage";
 import HyperlistAdminPage from "./pages/admin/HyperlistAdminPage";
 import LinkAdminPage from "./pages/admin/LinkAdminPage";
 import UsersAdminPage from "./pages/admin/UsersAdminPage";
@@ -27,6 +28,7 @@ const App = () => {
           <Route path="/link" element={<LinkPage />} />
           <Route path="/jokes" element={<JokesPage />} />
           <Route path="/manpower" element={<ManpowerPage />} />
+          <Route path="/potential" element={<PotentialWorkPage />} />
 
           <Route element={<RequireAdmin />}>
             <Route path="/admin/hyperlist" element={<HyperlistAdminPage />} />
