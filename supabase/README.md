@@ -22,6 +22,8 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
      isi & baca punya sendiri; admin baca semua. Murni policy, tanpa RPC.
    - `se_leave` + RLS — cuti / sakit / izin. Tabel bareng: semua yang login
      lihat, semua member isi/edit/hapus buat siapa aja.
+   - `se_potential_work` + RLS — watch-list kerjaan yang mungkin bakal
+     masuk. Tabel bareng: semua yang login lihat, semua member kelola.
    - `se_task` + `se_subtask` + `se_subtask_assignee` (assignee per-subtask,
      boleh > 1 orang) + RLS (baca user login, tulis `se_is_admin()`) +
      `se_task_set_status(id, status)` / `se_subtask_set_done(id, done)` /
@@ -62,8 +64,8 @@ coaching-math — se-math nggak bikin akun auth baru). Bisa set role
 hapus/turunkan role akun sendiri (trigger `se_profile_guard_self`).
 
 - User login tapi belum ada di `se_profile` → layar "Akun belum terdaftar".
-- `member` = bisa buka Dashboard / Task / Manpower / Hyperlist / Link /
-  Pojok Jokes (di Manpower cuma lihat laporan sendiri).
+- `member` = bisa buka Dashboard / Task / Potential Work / Manpower /
+  Hyperlist / Link / Pojok Jokes (di Manpower cuma lihat laporan sendiri).
 - `admin` = + rekap semua orang di Manpower, `/admin/hyperlist`,
   `/admin/link` & `/admin/users`.
 
@@ -94,6 +96,13 @@ dari assignee semua subtask-nya (dihitung di klien).
 
 **Tambah link** (modal): judul + URL (wajib), deskripsi, kategori / grup.
 Menu **Link** buat semua user login mengelompokkan link per kategori.
+
+## Potential Work — `/potential`
+
+Watch-list kerjaan yang **kemungkinan bakal masuk** — biar nggak lupa.
+Tiap item: judul + catatan + perkiraan waktu (teks bebas, mis. "abis
+Tryout Ep 3"). Tabel bareng (`se_potential_work`): **semua yang login
+lihat, semua member nambah/edit/hapus**. Terbaru dulu + search.
 
 ## Pojok Jokes — `/jokes`
 
@@ -126,13 +135,14 @@ buat siapa aja** (rentang tanggal + catatan). Tampil sebagai panel
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_joke` + `se_daily_report` + `se_leave` + `se_task` / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_joke` + `se_daily_report` + `se_leave` + `se_potential_work` + `se_task` / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 (list/create/update/delete/bulkCreate), `src/lib/links.js`
 (list/create/update/delete), `src/lib/jokes.js` (list/create/update/delete),
 `src/lib/daily.js` (laporan harian: list/create/update/delete),
 `src/lib/leave.js` (cuti/izin: list/create/update/delete),
+`src/lib/potential.js` (potential work: list/create/update/delete),
 `src/lib/tasks.js` (task + subtask + subtask-assignee: list/create/update/delete +
 `setTaskStatus` / `setSubtaskDone` / `setSubtaskAssignees` rpc),
 `src/lib/people.js` (list orang buat assignee), `src/lib/members.js`
