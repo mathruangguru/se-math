@@ -1,8 +1,7 @@
 import { supabase, hasSupabase } from "./supabase";
 
 const PROJECT_COLS =
-  "id, client_name, package, status, start_date, note, created_by, created_at";
-const SYLLABUS_COLS = "id, project_id, position, topic, detail, done";
+  "id, client_name, package, status, start_date, note, syllabus, created_by, created_at";
 const PAGE = 1000;
 
 function ensure() {
@@ -20,15 +19,6 @@ function cleanProject(row) {
     note: (row.note ?? "").trim(),
   };
 }
-
-function cleanSyllabus(row) {
-  return {
-    topic: (row.topic ?? "").trim(),
-    detail: (row.detail ?? "").trim(),
-  };
-}
-
-// ── Project ───────────────────────────────────────────────────────
 
 export async function listB2bProjects() {
   ensure();
@@ -86,81 +76,16 @@ export async function getB2bProject(id) {
   return data;
 }
 
-// ── Silabus (per project) ────────────────────────────────────────
-
-export async function listB2bSyllabus(projectId) {
+/** Silabus project = teks markdown, diedit langsung atau di-insert dari
+ * template (lihat src/lib/syllabus.js). */
+export async function updateProjectSyllabus(id, content) {
   ensure();
   const { data, error } = await supabase
-    .from("se_b2b_syllabus")
-    .select(SYLLABUS_COLS)
-    .eq("project_id", projectId)
-    .order("position")
-    .order("created_at");
-  if (error) throw error;
-  return data;
-}
-
-export async function createSyllabusItem(projectId, row, position) {
-  ensure();
-  const { data, error } = await supabase
-    .from("se_b2b_syllabus")
-    .insert({ ...cleanSyllabus(row), project_id: projectId, position })
-    .select(SYLLABUS_COLS)
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function updateSyllabusItem(id, patch) {
-  ensure();
-  const { data, error } = await supabase
-    .from("se_b2b_syllabus")
-    .update({ ...cleanSyllabus(patch), updated_at: new Date().toISOString() })
+    .from("se_b2b_project")
+    .update({ syllabus: content ?? "", updated_at: new Date().toISOString() })
     .eq("id", id)
-    .select(SYLLABUS_COLS)
+    .select(PROJECT_COLS)
     .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function deleteSyllabusItem(id) {
-  ensure();
-  const { error } = await supabase
-    .from("se_b2b_syllabus")
-    .delete()
-    .eq("id", id);
-  if (error) throw error;
-}
-
-/** Tuker `position` dua item (buat naik/turunin urutan). */
-export async function swapSyllabusPosition(a, b) {
-  ensure();
-  const [ra, rb] = await Promise.all([
-    supabase
-      .from("se_b2b_syllabus")
-      .update({ position: b.position })
-      .eq("id", a.id)
-      .select(SYLLABUS_COLS)
-      .single(),
-    supabase
-      .from("se_b2b_syllabus")
-      .update({ position: a.position })
-      .eq("id", b.id)
-      .select(SYLLABUS_COLS)
-      .single(),
-  ]);
-  if (ra.error) throw ra.error;
-  if (rb.error) throw rb.error;
-  return [ra.data, rb.data];
-}
-
-/** Centang / uncentang — boleh member biasa. */
-export async function setSyllabusDone(id, done) {
-  ensure();
-  const { data, error } = await supabase.rpc("se_b2b_syllabus_set_done", {
-    p_id: id,
-    p_done: done,
-  });
   if (error) throw error;
   return data;
 }
