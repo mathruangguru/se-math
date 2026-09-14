@@ -219,9 +219,12 @@ export default function B2bProjectPage() {
             </div>
           ) : !templates || templates.length === 0 ? (
             <p className="text-sm text-zinc-500">
-              Belum ada template. Bikin dulu di menu{" "}
-              <Link to="/silabus" className="font-semibold text-brand-600 underline">
-                Silabus
+              Belum ada template. Bikin dulu di{" "}
+              <Link
+                to="/b2b?tab=silabus"
+                className="font-semibold text-brand-600 underline"
+              >
+                B2B Center → Silabus
               </Link>
               .
             </p>

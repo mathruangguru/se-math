@@ -71,11 +71,10 @@ hapus/turunkan role akun sendiri (trigger `se_profile_guard_self`).
 
 - User login tapi belum ada di `se_profile` → layar "Akun belum terdaftar".
 - `member` = bisa buka Dashboard / Task / Potential Work / Manpower /
-  Silabus / B2B Center (lihat doang, dua-duanya) / Hyperlist / Link /
+  B2B Center (dua tab: Deals & Silabus, lihat doang) / Hyperlist / Link /
   Pojok Jokes (di Manpower cuma lihat laporan sendiri).
-- `admin` = + rekap semua orang di Manpower, kelola template Silabus,
-  kelola project & silabus B2B, `/admin/hyperlist`, `/admin/link` &
-  `/admin/users`.
+- `admin` = + rekap semua orang di Manpower, kelola project & silabus
+  B2B (kedua tab), `/admin/hyperlist`, `/admin/link` & `/admin/users`.
 
 ## Isi data Hyperlist — `/admin/hyperlist`
 
@@ -114,27 +113,28 @@ baris — klik kartu buka modal detail. Tabel bareng (`se_potential_work`):
 **semua yang login lihat, semua member nambah/edit/hapus**. Terbaru dulu
 + search.
 
-## Silabus — `/silabus`
-
-Template silabus (`se_syllabus`), **isinya markdown polos** — nggak ada
-struktur topik/tabel. Dibikin duluan di sini, nanti tinggal **di-insert**
-ke project B2B mana pun yang butuh. Grid kartu (preview isi 3 baris),
-klik → modal detail (markdown-nya di-render). **Admin** kelola
-(tambah/ubah/hapus); semua yang login bisa lihat.
-
 ## B2B Center — `/b2b`
 
-Project B2B: klien + **paket yang deal** + status (Berjalan / Selesai /
-Batal) + tanggal mulai + catatan. Klik project → halaman detailnya, ada
-kolom **silabus** (markdown juga, di kolom `se_b2b_project.syllabus`) yang
-di-render pakai komponen `Markdown` (headers/list/bold — bukan HTML asli,
-jadi aman dari script nyelip).
+Dua tab (segmented control di kanan atas):
 
-- **Admin**: kelola project (tambah/ubah/hapus) + kelola silabus project
-  — **"Insert dari silabus"** (pilih template dari `/silabus`, isinya
-  ditambahin ke bawah silabus yang ada) atau **"Edit"** (tulis/ubah
-  manual di textarea).
-- **Semua member**: lihat semua project & silabus-nya (read only).
+- **Deals** — project B2B: klien + **paket yang deal** + status
+  (Berjalan / Selesai / Batal) + tanggal mulai + catatan. Klik project
+  → halaman detailnya, ada kolom **silabus** (markdown, di kolom
+  `se_b2b_project.syllabus`) yang di-render pakai komponen `Markdown`
+  (headers/list/tabel/bold — bukan HTML asli, jadi aman dari script
+  nyelip).
+- **Silabus** — library template silabus (`se_syllabus`), **isinya
+  markdown polos**, dibikin duluan lepas dari deal mana pun. Grid kartu
+  (preview isi 3 baris) → klik → modal detail (markdown ke-render). Deep
+  link langsung ke tab ini: `/b2b?tab=silabus`.
+
+Di halaman detail sebuah project, admin bisa **"Insert dari silabus"**
+(pilih template dari tab Silabus, isinya ditambahin ke bawah silabus yang
+ada) atau **"Edit"** (tulis/ubah manual di textarea).
+
+- **Admin**: kelola project + template silabus (tambah/ubah/hapus) +
+  kelola silabus tiap project.
+- **Semua member**: lihat semuanya (read only).
 
 ## Pojok Jokes — `/jokes`
 
