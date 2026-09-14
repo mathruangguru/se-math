@@ -1,7 +1,8 @@
-// Renderer markdown minimal — headers (#/##/###), list (-/*/1.), bold
-// (**x**), italic (*x*), paragraf. Semua jadi elemen React biasa (bukan
-// dangerouslySetInnerHTML), jadi aman dari HTML/script nyelip di teks.
-// Nggak lengkap kayak markdown beneran, tapi cukup buat dokumen silabus.
+// Renderer markdown minimal — headers (#/##/###), list (-/*/1.), tabel
+// (| a | b |), bold (**x**), italic (*x*), paragraf. Semua jadi elemen
+// React biasa (bukan dangerouslySetInnerHTML), jadi aman dari HTML/script
+// nyelip di teks. Nggak lengkap kayak markdown beneran, tapi cukup buat
+// dokumen silabus.
 
 function renderInline(text, keyPrefix) {
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
@@ -14,6 +15,23 @@ function renderInline(text, keyPrefix) {
     }
     return part;
   });
+}
+
+function isTableRow(line) {
+  return /^\s*\|.*\|\s*$/.test(line);
+}
+
+function isSeparatorRow(line) {
+  if (!isTableRow(line)) return false;
+  const cells = splitRow(line);
+  return cells.length > 0 && cells.every((c) => /^:?-{1,}:?$/.test(c));
+}
+
+function splitRow(line) {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
 }
 
 function parseBlocks(text) {
@@ -35,20 +53,40 @@ function parseBlocks(text) {
     }
   };
 
-  for (const raw of lines) {
-    const line = raw.trimEnd();
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trimEnd();
+
     if (!line.trim()) {
       flushPara();
       flushList();
+      i += 1;
       continue;
     }
+
+    if (isTableRow(line) && i + 1 < lines.length && isSeparatorRow(lines[i + 1])) {
+      flushPara();
+      flushList();
+      const header = splitRow(line);
+      i += 2; // lewatin header + baris pemisah
+      const rows = [];
+      while (i < lines.length && isTableRow(lines[i])) {
+        rows.push(splitRow(lines[i]));
+        i += 1;
+      }
+      blocks.push({ type: "table", header, rows });
+      continue;
+    }
+
     const h = line.match(/^(#{1,3})\s+(.*)$/);
     if (h) {
       flushPara();
       flushList();
       blocks.push({ type: `h${h[1].length}`, text: h[2] });
+      i += 1;
       continue;
     }
+
     const ul = line.match(/^[-*]\s+(.*)$/);
     if (ul) {
       flushPara();
@@ -57,8 +95,10 @@ function parseBlocks(text) {
         list = { type: "ul", items: [] };
       }
       list.items.push(ul[1]);
+      i += 1;
       continue;
     }
+
     const ol = line.match(/^\d+[.)]\s+(.*)$/);
     if (ol) {
       flushPara();
@@ -67,10 +107,13 @@ function parseBlocks(text) {
         list = { type: "ol", items: [] };
       }
       list.items.push(ol[1]);
+      i += 1;
       continue;
     }
+
     flushList();
     para.push(line.trim());
+    i += 1;
   }
   flushPara();
   flushList();
@@ -120,6 +163,40 @@ export default function Markdown({ text, className = "" }) {
                 <li key={j}>{renderInline(it, `${i}-${j}`)}</li>
               ))}
             </ol>
+          );
+        }
+        if (b.type === "table") {
+          return (
+            <div key={i} className="scroll-slim mt-2 overflow-x-auto first:mt-0">
+              <table className="w-full min-w-[420px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="bg-zinc-50">
+                    {b.header.map((c, j) => (
+                      <th
+                        key={j}
+                        className="border border-zinc-200 px-2.5 py-1.5 text-xs font-semibold text-zinc-600"
+                      >
+                        {renderInline(c, `${i}-h${j}`)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {b.rows.map((r, ri) => (
+                    <tr key={ri} className="border-t border-zinc-100">
+                      {r.map((c, ci) => (
+                        <td
+                          key={ci}
+                          className="border border-zinc-200 px-2.5 py-1.5 align-top text-zinc-700"
+                        >
+                          {renderInline(c, `${i}-${ri}-${ci}`)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           );
         }
         return (
