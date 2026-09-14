@@ -13,6 +13,7 @@ import PotentialWorkPage from "./pages/PotentialWorkPage";
 import B2bCenterPage from "./pages/B2bCenterPage";
 import B2bProjectPage from "./pages/B2bProjectPage";
 import SyllabusTemplatePage from "./pages/SyllabusTemplatePage";
+import MaterialPage from "./pages/MaterialPage";
 import HyperlistAdminPage from "./pages/admin/HyperlistAdminPage";
 import LinkAdminPage from "./pages/admin/LinkAdminPage";
 import UsersAdminPage from "./pages/admin/UsersAdminPage";
@@ -34,6 +35,7 @@ const App = () => {
           <Route path="/potential" element={<PotentialWorkPage />} />
           <Route path="/b2b" element={<B2bCenterPage />} />
           <Route path="/b2b/silabus/:id" element={<SyllabusTemplatePage />} />
+          <Route path="/b2b/materi/:id" element={<MaterialPage />} />
           <Route path="/b2b/:id" element={<B2bProjectPage />} />
 
           <Route element={<RequireAdmin />}>
