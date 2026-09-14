@@ -125,8 +125,8 @@ Dua tab (segmented control di kanan atas):
   — bukan HTML asli, jadi aman dari script nyelip).
 - **Silabus** — library template silabus (`se_syllabus`), **isinya
   markdown polos**, dibikin duluan lepas dari deal mana pun. Grid kartu
-  (preview isi 3 baris) → klik → modal detail (markdown ke-render). Deep
-  link langsung ke tab ini: `/b2b?tab=silabus`.
+  (preview isi 3 baris) → klik → halaman detail sendiri (`/b2b/silabus/:id`,
+  markdown ke-render). Deep link langsung ke tab list: `/b2b?tab=silabus`.
 
 Di halaman detail sebuah project, admin bisa **"Insert dari silabus"**
 (pilih template dari tab Silabus, isinya ditambahin ke bawah silabus yang

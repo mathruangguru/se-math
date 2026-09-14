@@ -3,7 +3,6 @@ import { Link, useSearchParams } from "react-router-dom";
 import { CalendarDays, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import Skeleton from "../components/ui/Skeleton";
 import Modal from "../components/ui/Modal";
-import Markdown from "../components/ui/Markdown";
 import SegmentedControl from "../components/ui/SegmentedControl";
 import { useAuth } from "../context/auth-context";
 import { shortDate } from "../lib/date";
@@ -177,8 +176,6 @@ export default function B2bCenterPage() {
   const [tplFormError, setTplFormError] = useState("");
   const [tplSaving, setTplSaving] = useState(false);
 
-  const [detailTpl, setDetailTpl] = useState(null);
-
   useEffect(() => {
     let alive = true;
     listSyllabusTemplates()
@@ -234,7 +231,6 @@ export default function B2bCenterPage() {
       if (tplForm.id) {
         const updated = await updateSyllabusTemplate(tplForm.id, tplForm);
         setTemplates((p) => p.map((r) => (r.id === updated.id ? updated : r)));
-        setDetailTpl((d) => (d?.id === updated.id ? updated : d));
       } else {
         const created = await createSyllabusTemplate(tplForm, null);
         setTemplates((p) => [created, ...p]);
@@ -256,7 +252,6 @@ export default function B2bCenterPage() {
     try {
       await deleteSyllabusTemplate(r.id);
       setTemplates((p) => p.filter((x) => x.id !== r.id));
-      setDetailTpl((d) => (d?.id === r.id ? null : d));
     } catch (err) {
       window.alert(`Gagal menghapus: ${err?.message ?? err}`);
     } finally {
@@ -466,48 +461,6 @@ export default function B2bCenterPage() {
         </form>
       </Modal>
 
-      {/* Detail template silabus */}
-      <Modal
-        open={!!detailTpl}
-        onClose={() => setDetailTpl(null)}
-        title={detailTpl?.title}
-      >
-        {detailTpl && (
-          <div className="flex flex-col gap-3">
-            {detailTpl.content ? (
-              <div className="scroll-slim max-h-[55vh] overflow-y-auto">
-                <Markdown text={detailTpl.content} />
-              </div>
-            ) : (
-              <p className="text-sm text-zinc-400">Belum ada isi.</p>
-            )}
-            {isAdmin && (
-              <div className="flex items-center gap-2 border-t border-zinc-100 pt-3">
-                <button
-                  onClick={(e) => openTplEdit(detailTpl, e)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
-                >
-                  <Pencil size={13} /> Ubah
-                </button>
-                <button
-                  onClick={(e) => handleTplDelete(detailTpl, e)}
-                  disabled={tplBusyId === detailTpl.id}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-600 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
-                >
-                  <Trash2 size={13} /> Hapus
-                </button>
-                <button
-                  onClick={() => setDetailTpl(null)}
-                  className="ml-auto rounded-lg px-3 py-2 text-xs font-semibold text-zinc-600 transition-colors hover:bg-zinc-100"
-                >
-                  Tutup
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
-
       {/* Isi */}
       {mode === "deals" ? (
         status === "loading" ? (
@@ -611,18 +564,10 @@ export default function B2bCenterPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {filteredTemplates.map((r) => (
-            <div
+            <Link
               key={r.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => setDetailTpl(r)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setDetailTpl(r);
-                }
-              }}
-              className="group flex cursor-pointer flex-col rounded-2xl border border-zinc-200/80 bg-white p-4 text-left transition-shadow hover:shadow-sm"
+              to={`/b2b/silabus/${r.id}`}
+              className="group flex flex-col rounded-2xl border border-zinc-200/80 bg-white p-4 transition-shadow hover:shadow-sm"
             >
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-semibold leading-snug text-zinc-900">
@@ -653,7 +598,7 @@ export default function B2bCenterPage() {
                   {r.content}
                 </p>
               )}
-            </div>
+            </Link>
           ))}
         </div>
       )}

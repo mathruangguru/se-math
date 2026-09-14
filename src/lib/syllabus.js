@@ -59,3 +59,14 @@ export async function deleteSyllabusTemplate(id) {
   const { error } = await supabase.from("se_syllabus").delete().eq("id", id);
   if (error) throw error;
 }
+
+export async function getSyllabusTemplate(id) {
+  ensure();
+  const { data, error } = await supabase
+    .from("se_syllabus")
+    .select(COLS)
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  return data;
+}
