@@ -35,6 +35,7 @@ const emptyProjectForm = {
   id: null,
   client_name: "",
   package: "",
+  category: "",
   status: "berjalan",
   start_date: "",
   note: "",
@@ -98,6 +99,7 @@ export default function B2bCenterPage() {
       (r) =>
         r.client_name.toLowerCase().includes(needle) ||
         r.package.toLowerCase().includes(needle) ||
+        r.category.toLowerCase().includes(needle) ||
         r.note.toLowerCase().includes(needle)
     );
   }, [rows, qDeals]);
@@ -116,6 +118,7 @@ export default function B2bCenterPage() {
       id: r.id,
       client_name: r.client_name,
       package: r.package,
+      category: r.category,
       status: r.status,
       start_date: r.start_date ?? "",
       note: r.note,
@@ -347,15 +350,26 @@ export default function B2bCenterPage() {
               className={fieldCls}
             />
           </label>
-          <label className="block text-xs font-medium text-zinc-600">
-            Paket yang deal
-            <input
-              value={form.package}
-              onChange={(e) => set("package", e.target.value)}
-              placeholder="mis. Paket Intensif 20 sesi"
-              className={fieldCls}
-            />
-          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs font-medium text-zinc-600">
+              Paket yang deal
+              <input
+                value={form.package}
+                onChange={(e) => set("package", e.target.value)}
+                placeholder="mis. Paket Intensif 20 sesi"
+                className={fieldCls}
+              />
+            </label>
+            <label className="block text-xs font-medium text-zinc-600">
+              Kategori
+              <input
+                value={form.category}
+                onChange={(e) => set("category", e.target.value)}
+                placeholder="mis. Pelatihan Guru"
+                className={fieldCls}
+              />
+            </label>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-xs font-medium text-zinc-600">
               Status
@@ -501,9 +515,17 @@ export default function B2bCenterPage() {
                       {sm.label}
                     </span>
                   </div>
-                  {r.package && (
-                    <p className="mt-1 text-xs font-medium text-zinc-600">
+                  {(r.package || r.category) && (
+                    <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs font-medium text-zinc-600">
                       {r.package}
+                      {r.package && r.category && (
+                        <span className="text-zinc-300">·</span>
+                      )}
+                      {r.category && (
+                        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500">
+                          {r.category}
+                        </span>
+                      )}
                     </p>
                   )}
                   {r.note && (

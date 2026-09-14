@@ -565,9 +565,12 @@ create table if not exists public.se_b2b_project (
   created_at  timestamptz not null default now(),
   updated_at  timestamptz
 );
--- Kolom baru buat tabel yang terlanjur dibuat sebelum ada `syllabus`.
+-- Kolom baru buat tabel yang terlanjur dibuat sebelum ada `syllabus` /
+-- `category`. `category` teks bebas (mis. "Pelatihan Guru", "Bimbel Siswa").
 alter table public.se_b2b_project
   add column if not exists syllabus text not null default '';
+alter table public.se_b2b_project
+  add column if not exists category text not null default '';
 create index if not exists se_b2b_project_status_idx
   on public.se_b2b_project (status);
 
@@ -583,6 +586,76 @@ create policy "se_b2b_project read"
 drop policy if exists "se_b2b_project write admin" on public.se_b2b_project;
 create policy "se_b2b_project write admin"
   on public.se_b2b_project for all
+  using (public.se_is_admin()) with check (public.se_is_admin());
+
+-- Task boleh dikaitkan ke project B2B (opsional). Ditambah di sini (bukan
+-- di section se_task jauh di atas) karena butuh se_b2b_project sudah ada
+-- dulu buat foreign key-nya. Project dihapus -> task-nya nggak ikut hilang,
+-- cuma dilepas kaitannya (`set null`).
+alter table public.se_task
+  add column if not exists project_id uuid
+  references public.se_b2b_project (id) on delete set null;
+create index if not exists se_task_project_idx on public.se_task (project_id);
+
+-- ── se_b2b_milestone: checkpoint progress project B2B ──────────────
+-- Semua yang login lihat. Admin doang yang kelola (tambah/ubah/hapus/
+-- centang tercapai) — konsisten sama bagian B2B Center yang lain.
+
+create table if not exists public.se_b2b_milestone (
+  id          uuid primary key default gen_random_uuid(),
+  project_id  uuid not null references public.se_b2b_project (id) on delete cascade,
+  title       text not null default '',
+  target_date date,
+  done        boolean not null default false,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz
+);
+create index if not exists se_b2b_milestone_project_idx
+  on public.se_b2b_milestone (project_id);
+
+alter table public.se_b2b_milestone enable row level security;
+
+grant select, insert, update, delete on public.se_b2b_milestone to authenticated;
+grant all on public.se_b2b_milestone to service_role;
+
+drop policy if exists "se_b2b_milestone read" on public.se_b2b_milestone;
+create policy "se_b2b_milestone read"
+  on public.se_b2b_milestone for select using (auth.uid() is not null);
+
+drop policy if exists "se_b2b_milestone write admin" on public.se_b2b_milestone;
+create policy "se_b2b_milestone write admin"
+  on public.se_b2b_milestone for all
+  using (public.se_is_admin()) with check (public.se_is_admin());
+
+-- ── se_b2b_important_date: tanggal kunci project B2B ────────────────
+-- Beda dari milestone: cuma label + tanggal (+ catatan), tanpa status
+-- tercapai/belum — mis. deadline pembayaran, kickoff, evaluasi. Semua
+-- yang login lihat. Admin doang yang kelola.
+
+create table if not exists public.se_b2b_important_date (
+  id         uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.se_b2b_project (id) on delete cascade,
+  label      text not null default '',
+  date_value date not null default current_date,
+  note       text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+create index if not exists se_b2b_important_date_project_idx
+  on public.se_b2b_important_date (project_id);
+
+alter table public.se_b2b_important_date enable row level security;
+
+grant select, insert, update, delete on public.se_b2b_important_date to authenticated;
+grant all on public.se_b2b_important_date to service_role;
+
+drop policy if exists "se_b2b_important_date read" on public.se_b2b_important_date;
+create policy "se_b2b_important_date read"
+  on public.se_b2b_important_date for select using (auth.uid() is not null);
+
+drop policy if exists "se_b2b_important_date write admin" on public.se_b2b_important_date;
+create policy "se_b2b_important_date write admin"
+  on public.se_b2b_important_date for all
   using (public.se_is_admin()) with check (public.se_is_admin());
 
 -- Silabus project sekarang cuma teks markdown di se_b2b_project.syllabus

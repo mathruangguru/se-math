@@ -87,7 +87,10 @@ sama persis dengan `public/hyperlist.tsv`.
 Board bersama. Semua user login lihat & bisa ubah **status** (RPC
 `se_task_set_status`). Tambah / edit / hapus task cuma admin. Tampilan
 List / Tabel / Kanban (pilihan disimpan di `localStorage`). Filter per
-status & per orang ("Punya saya" / "Belum ada assignee").
+status, per orang ("Punya saya" / "Belum ada assignee"), dan per **project
+B2B** (opsional, `se_task.project_id` → `se_b2b_project`). Task yang
+kekait ke project nunjukin tag klien-nya (klik → halaman project). Deep
+link filter project: `/task?project=<id>`.
 
 Tiap task punya **subtask** (checklist, tabel `se_subtask`): admin
 nambah/hapus, semua member boleh centang (`se_subtask_set_done`).
@@ -117,12 +120,21 @@ baris — klik kartu buka modal detail. Tabel bareng (`se_potential_work`):
 
 Dua tab (segmented control di kanan atas):
 
-- **Deals** — project B2B: klien + **paket yang deal** + status
-  (Berjalan / Selesai / Batal) + tanggal mulai + catatan. Klik project
-  → halaman detailnya, ada kolom **silabus** (markdown, di kolom
-  `se_b2b_project.syllabus`) yang di-render pakai komponen `Markdown`
-  (headers/list & checklist/tabel/blockquote/hr/kode/link/bold/italic/coret
-  — bukan HTML asli, jadi aman dari script nyelip).
+- **Deals** — project B2B: klien + **paket yang deal** + **kategori**
+  (teks bebas, mis. "Pelatihan Guru") + status (Berjalan / Selesai /
+  Batal) + tanggal mulai + catatan. Klik project → halaman detailnya:
+  - **Milestone** (`se_b2b_milestone`) — checkpoint progress: judul +
+    target tanggal + centang tercapai/belum.
+  - **Tanggal penting** (`se_b2b_important_date`) — beda dari milestone,
+    cuma label + tanggal + catatan, tanpa status (mis. deadline
+    pembayaran, kickoff).
+  - **Task** — task dari board `/task` yang `project_id`-nya diset ke
+    project ini (lihat section Task di atas); status bisa diubah
+    member biasa, CRUD admin, sama kayak di board utama.
+  - **Silabus** (markdown, kolom `se_b2b_project.syllabus`) yang
+    di-render pakai komponen `Markdown`
+    (headers/list & checklist/tabel/blockquote/hr/kode/link/bold/italic/coret
+    — bukan HTML asli, jadi aman dari script nyelip).
 - **Silabus** — library template silabus (`se_syllabus`), **isinya
   markdown polos**, dibikin duluan lepas dari deal mana pun. Grid kartu
   (preview isi 3 baris) → klik → halaman detail sendiri (`/b2b/silabus/:id`,
@@ -132,9 +144,10 @@ Di halaman detail sebuah project, admin bisa **"Insert dari silabus"**
 (pilih template dari tab Silabus, isinya ditambahin ke bawah silabus yang
 ada) atau **"Edit"** (tulis/ubah manual di textarea).
 
-- **Admin**: kelola project + template silabus (tambah/ubah/hapus) +
-  kelola silabus tiap project.
-- **Semua member**: lihat semuanya (read only).
+- **Admin**: kelola project + milestone + tanggal penting + task + template
+  silabus (tambah/ubah/hapus) + kelola silabus tiap project.
+- **Semua member**: lihat semuanya (read only), kecuali status task yang
+  boleh diubah semua member (sama kayak board Task).
 
 ## Pojok Jokes — `/jokes`
 
@@ -167,7 +180,7 @@ buat siapa aja** (rentang tanggal + catatan). Tampil sebagai panel
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_joke` + `se_daily_report` + `se_leave` + `se_potential_work` + `se_syllabus` + `se_b2b_project` (kolom `syllabus` markdown) + `se_task` / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_joke` + `se_daily_report` + `se_leave` + `se_potential_work` + `se_syllabus` + `se_b2b_project` (kolom `syllabus` markdown, `category` teks bebas) + `se_b2b_milestone` + `se_b2b_important_date` + `se_task` (kolom `project_id` opsional → `se_b2b_project`) / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 (list/create/update/delete/bulkCreate), `src/lib/links.js`
@@ -177,9 +190,11 @@ Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 `src/lib/potential.js` (potential work: list/create/update/delete),
 `src/lib/syllabus.js` (template silabus: list/create/update/delete),
 `src/lib/b2b.js` (project B2B: list/create/update/delete +
-`updateProjectSyllabus`), `src/components/ui/Markdown.jsx` (render
-markdown ringan tanpa dependency),
-`src/lib/tasks.js` (task + subtask + subtask-assignee: list/create/update/delete +
+`updateProjectSyllabus` + milestone: list/create/update/`setMilestoneDone`/delete
++ tanggal penting: list/create/update/delete), `src/components/ui/Markdown.jsx`
+(render markdown ringan tanpa dependency),
+`src/lib/tasks.js` (task + subtask + subtask-assignee: list/create/update/delete
+(`project_id` opsional) + `listTasksByProject` +
 `setTaskStatus` / `setSubtaskDone` / `setSubtaskAssignees` rpc),
 `src/lib/people.js` (list orang buat assignee), `src/lib/members.js`
 (list/add/setRole/remove), `src/lib/auth.js` +

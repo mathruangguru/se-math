@@ -1,6 +1,6 @@
 import { supabase, hasSupabase } from "./supabase";
 
-const T_COLS = "id, title, description, priority, status, deadline";
+const T_COLS = "id, title, description, priority, status, deadline, project_id";
 const PAGE = 1000;
 
 function ensure() {
@@ -14,6 +14,7 @@ function clean(row) {
     priority: row.priority ?? "P2",
     status: row.status ?? "todo",
     deadline: row.deadline ? row.deadline : null,
+    project_id: row.project_id ? row.project_id : null,
   };
 }
 
@@ -38,6 +39,21 @@ async function selectAll() {
 export async function listTasks() {
   ensure();
   return selectAll();
+}
+
+/** Task yang dikaitkan ke satu project B2B — dipakai di halaman detail
+ * project (section "Task"), bukan board utama. */
+export async function listTasksByProject(projectId) {
+  ensure();
+  const { data, error } = await supabase
+    .from("se_task")
+    .select(T_COLS)
+    .eq("project_id", projectId)
+    .order("priority")
+    .order("deadline", { nullsFirst: false })
+    .order("created_at");
+  if (error) throw error;
+  return data;
 }
 
 export async function createTask(row) {

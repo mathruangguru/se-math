@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
+  Building2,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
@@ -20,6 +22,7 @@ import SubtaskChecklist from "../components/task/SubtaskChecklist";
 import { useAuth } from "../context/auth-context";
 import { shortDate, deadlineTone, deadlineLabel } from "../lib/date";
 import { listPeople, personName } from "../lib/people";
+import { listB2bProjects } from "../lib/b2b";
 import {
   listTasks,
   createTask,
@@ -57,6 +60,7 @@ const emptyForm = {
   priority: "P2",
   status: "todo",
   deadline: "",
+  project_id: "",
 };
 const fieldCls =
   "mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-brand-500";
@@ -119,6 +123,22 @@ function Deadline({ task, bare = false }) {
   );
 }
 
+function ProjectTag({ task, projectById }) {
+  if (!task.project_id) return null;
+  const p = projectById.get(task.project_id);
+  if (!p) return null;
+  return (
+    <Link
+      to={`/b2b/${task.project_id}`}
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-700"
+    >
+      <Building2 size={10} />
+      {p.client_name || "Project"}
+    </Link>
+  );
+}
+
 // Urutan dalam grup List: prioritas (P0 dulu) lalu deadline terdekat.
 function byPrioThenDeadline(a, b) {
   const p = PRIORITIES.indexOf(a.priority) - PRIORITIES.indexOf(b.priority);
@@ -145,11 +165,13 @@ function readView() {
 export default function TaskPage() {
   const { isAdmin, profile } = useAuth();
   const myId = profile?.id ?? null;
+  const [searchParams] = useSearchParams();
 
   const [rows, setRows] = useState([]);
   const [subs, setSubs] = useState([]); // flat se_subtask rows
   const [subAssignees, setSubAssignees] = useState([]); // { subtask_id, person_id }
   const [people, setPeople] = useState([]);
+  const [projects, setProjects] = useState([]); // se_b2b_project (buat filter & tag)
   const [status, setStatus] = useState("loading"); // loading | error | ready
   const [msg, setMsg] = useState(null); // { ok, text }
   const [rowBusyId, setRowBusyId] = useState(null);
@@ -157,6 +179,9 @@ export default function TaskPage() {
   const [view, setView] = useState(readView);
   const [q, setQ] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
+  const [projectFilter, setProjectFilter] = useState(
+    () => searchParams.get("project") ?? "",
+  );
   const [collapsed, setCollapsed] = useState(() => new Set(["done"]));
   const [page, setPage] = useState(1);
 
@@ -184,16 +209,18 @@ export default function TaskPage() {
 
   async function fetchTasks() {
     try {
-      const [t, s, sa, p] = await Promise.all([
+      const [t, s, sa, p, proj] = await Promise.all([
         listTasks(),
         listSubtasks(),
         listSubtaskAssignees().catch(() => []),
         listPeople().catch(() => []),
+        listB2bProjects().catch(() => []),
       ]);
       setRows(t);
       setSubs(s);
       setSubAssignees(sa);
       setPeople(p);
+      setProjects(proj);
       setStatus("ready");
     } catch (err) {
       console.error("[task] gagal memuat:", err);
@@ -208,13 +235,15 @@ export default function TaskPage() {
       listSubtasks(),
       listSubtaskAssignees().catch(() => []),
       listPeople().catch(() => []),
+      listB2bProjects().catch(() => []),
     ])
-      .then(([t, s, sa, p]) => {
+      .then(([t, s, sa, p, proj]) => {
         if (!alive) return;
         setRows(t);
         setSubs(s);
         setSubAssignees(sa);
         setPeople(p);
+        setProjects(proj);
         setStatus("ready");
       })
       .catch((err) => {
@@ -232,6 +261,12 @@ export default function TaskPage() {
     for (const p of people) m.set(p.id, p);
     return m;
   }, [people]);
+
+  const projectById = useMemo(() => {
+    const m = new Map();
+    for (const p of projects) m.set(p.id, p);
+    return m;
+  }, [projects]);
 
   const counts = useMemo(() => {
     const c = { todo: 0, doing: 0, done: 0 };
@@ -371,16 +406,23 @@ export default function TaskPage() {
         !ids.includes(assigneeFilter)
       )
         return false;
+      if (projectFilter === "__none" && t.project_id) return false;
+      if (
+        projectFilter &&
+        projectFilter !== "__none" &&
+        t.project_id !== projectFilter
+      )
+        return false;
       if (!needle) return true;
       return (
         t.title.toLowerCase().includes(needle) ||
         (t.description ?? "").toLowerCase().includes(needle)
       );
     });
-  }, [rows, q, assigneeFilter, myId, rollupByTask]);
+  }, [rows, q, assigneeFilter, projectFilter, myId, rollupByTask]);
 
   // Balik ke halaman 1 tiap filter berubah (adjust state saat render).
-  const filterKey = `${q} ${assigneeFilter}`;
+  const filterKey = `${q} ${assigneeFilter} ${projectFilter}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -399,7 +441,12 @@ export default function TaskPage() {
     setShowForm(true);
   };
   const openEdit = (t) => {
-    setForm({ ...emptyForm, ...t, deadline: t.deadline ?? "" });
+    setForm({
+      ...emptyForm,
+      ...t,
+      deadline: t.deadline ?? "",
+      project_id: t.project_id ?? "",
+    });
     setFormError("");
     setShowForm(true);
   };
@@ -418,6 +465,7 @@ export default function TaskPage() {
       priority: form.priority,
       status: form.status,
       deadline: form.deadline || null,
+      project_id: form.project_id || null,
     };
     setSaving(true);
     try {
@@ -558,6 +606,21 @@ export default function TaskPage() {
               </option>
             ))}
         </select>
+        {projects.length > 0 && (
+          <select
+            value={projectFilter}
+            onChange={(e) => setProjectFilter(e.target.value)}
+            className={filterCls}
+          >
+            <option value="">Semua project</option>
+            <option value="__none">Tanpa project</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.client_name || "Tanpa nama"}
+              </option>
+            ))}
+          </select>
+        )}
         {isAdmin && (
           <button
             onClick={openCreate}
@@ -631,6 +694,21 @@ export default function TaskPage() {
               />
             </label>
           </div>
+          <label className="block text-xs font-medium text-zinc-600">
+            Project B2B (opsional)
+            <select
+              value={form.project_id}
+              onChange={(e) => set("project_id", e.target.value)}
+              className={fieldCls}
+            >
+              <option value="">Tidak terkait</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.client_name || "Tanpa nama"}
+                </option>
+              ))}
+            </select>
+          </label>
           <p className="text-[11px] leading-relaxed text-zinc-400">
             Assignee diatur per subtask (di checklist tiap task), bukan di
             sini.
@@ -749,6 +827,7 @@ export default function TaskPage() {
                           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-zinc-400">
                             {rollupAvatars(t)}
                             <Deadline task={t} bare />
+                            <ProjectTag task={t} projectById={projectById} />
                             {subChecklist(t)}
                           </div>
                         </div>
@@ -795,6 +874,11 @@ export default function TaskPage() {
                         <p className="mt-0.5 line-clamp-1 text-xs text-zinc-400">
                           {t.description}
                         </p>
+                      )}
+                      {t.project_id && (
+                        <div className="mt-1">
+                          <ProjectTag task={t} projectById={projectById} />
+                        </div>
                       )}
                       {subChecklist(t)}
                     </td>
@@ -876,6 +960,11 @@ export default function TaskPage() {
                           <p className="mt-0.5 line-clamp-2 text-xs text-zinc-500">
                             {t.description}
                           </p>
+                        )}
+                        {t.project_id && (
+                          <div className="mt-1.5">
+                            <ProjectTag task={t} projectById={projectById} />
+                          </div>
                         )}
                         <div className="mt-2">{rollupAvatars(t)}</div>
                         {subChecklist(t)}
