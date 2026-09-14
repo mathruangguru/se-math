@@ -143,17 +143,18 @@ Tiga tab (segmented control di kanan atas):
     member biasa, CRUD admin, sama kayak di board utama.
   - **Silabus** (markdown, kolom `se_b2b_project.syllabus`) yang
     di-render pakai komponen `Markdown`
-    (headers/list & checklist/tabel/blockquote/hr/kode/link/bold/italic/coret
+    (headers/list & checklist/tabel/blockquote/hr/kode/link/bold/italic/coret/
+    **LaTeX** `$x$` inline & `$$x$$` display lewat KaTeX
     — bukan HTML asli, jadi aman dari script nyelip).
 - **Silabus** — library template silabus (`se_syllabus`), **isinya
   markdown polos**, dibikin duluan lepas dari deal mana pun. Grid kartu
   (preview isi 3 baris) → klik → halaman detail sendiri (`/b2b/silabus/:id`,
   markdown ke-render). Deep link langsung ke tab list: `/b2b?tab=silabus`.
-- **Bahan Ajar** — katalog bahan ajar B2B (`se_b2b_material`), **markdown +
-  link opsional** (mis. ke Drive/PDF/slide/video), mirip Silabus tapi
-  **berdiri sendiri** — bukan diinsert ke project mana pun, murni katalog
-  referensi. Grid kartu (link + preview isi 3 baris) → klik → halaman
-  detail sendiri (`/b2b/materi/:id`). Deep link: `/b2b?tab=materi`.
+- **Bahan Ajar** — katalog bahan ajar B2B (`se_b2b_material`), **markdown
+  (termasuk LaTeX) + link opsional** (mis. ke Drive/PDF/slide/video), mirip
+  Silabus tapi **berdiri sendiri** — bukan diinsert ke project mana pun,
+  murni katalog referensi. Grid kartu (link + preview isi 3 baris) → klik →
+  halaman detail sendiri (`/b2b/materi/:id`). Deep link: `/b2b?tab=materi`.
 
 Di halaman detail sebuah project, admin bisa **"Insert dari silabus"**
 (pilih template dari tab Silabus, isinya ditambahin ke bawah silabus yang
