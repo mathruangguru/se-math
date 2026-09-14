@@ -1,15 +1,41 @@
 // Renderer markdown minimal — headers (#/##/###), list (-/*/1., termasuk
 // checklist [ ]/[x]), tabel (| a | b |), blockquote (> x), horizontal rule
 // (---), kode inline (`x`) & blok (```), link ([x](url)), bold (**x**),
-// italic (*x*), coret (~~x~~), paragraf. Semua jadi elemen React biasa
-// (bukan dangerouslySetInnerHTML), jadi aman dari HTML/script nyelip di
-// teks. Nggak lengkap kayak markdown beneran, tapi cukup buat dokumen
-// silabus.
+// italic (*x*), coret (~~x~~), LaTeX ($x$ inline / $$x$$ display, lewat
+// KaTeX), paragraf. Semua jadi elemen React biasa (bukan
+// dangerouslySetInnerHTML, kecuali output KaTeX sendiri yang tepercaya),
+// jadi aman dari HTML/script nyelip di teks. Nggak lengkap kayak markdown
+// beneran, tapi cukup buat dokumen silabus.
+
+import katex from "katex";
 
 const SAFE_URL_RE = /^(https?:|mailto:)/i;
 
 const INLINE_RE =
-  /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|\[[^\]]+\]\([^)]+\)|\*[^*]+\*)/g;
+  /(`[^`]+`|\$\$[^$]*\$\$|\$[^$]+\$|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|\[[^\]]+\]\([^)]+\)|\*[^*]+\*)/g;
+
+function escapeHtml(s) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Fallback (KaTeX gagal total) di-escape manual — biar tetep aman biarpun
+// nggak lewat elemen React biasa.
+function katexHtml(src, displayMode) {
+  try {
+    return katex.renderToString(src, {
+      displayMode,
+      throwOnError: false,
+      strict: false,
+    });
+  } catch {
+    return escapeHtml(src);
+  }
+}
 
 function renderInline(text, keyPrefix) {
   const parts = text.split(INLINE_RE);
@@ -25,6 +51,22 @@ function renderInline(text, keyPrefix) {
         >
           {part.slice(1, -1)}
         </code>
+      );
+    }
+    if (part.startsWith("$$") && part.endsWith("$$") && part.length >= 4) {
+      return (
+        <span
+          key={key}
+          dangerouslySetInnerHTML={{ __html: katexHtml(part.slice(2, -2), true) }}
+        />
+      );
+    }
+    if (part.startsWith("$") && part.endsWith("$") && part.length >= 2) {
+      return (
+        <span
+          key={key}
+          dangerouslySetInnerHTML={{ __html: katexHtml(part.slice(1, -1), false) }}
+        />
       );
     }
     if (part.startsWith("**") && part.endsWith("**")) {
