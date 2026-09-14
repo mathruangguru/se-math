@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarDays, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  Link2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import Skeleton from "../components/ui/Skeleton";
 import Modal from "../components/ui/Modal";
 import SegmentedControl from "../components/ui/SegmentedControl";
@@ -18,11 +25,19 @@ import {
   updateSyllabusTemplate,
   deleteSyllabusTemplate,
 } from "../lib/syllabus";
+import {
+  listMaterials,
+  createMaterial,
+  updateMaterial,
+  deleteMaterial,
+} from "../lib/materials";
 
 const MODES = [
   { value: "deals", label: "Deals" },
   { value: "silabus", label: "Silabus" },
+  { value: "materi", label: "Bahan Ajar" },
 ];
+const VALID_MODES = new Set(MODES.map((m) => m.value));
 
 const STATUSES = [
   { value: "berjalan", label: "Berjalan", cls: "bg-sky-100 text-sky-700" },
@@ -41,15 +56,17 @@ const emptyProjectForm = {
   note: "",
 };
 const emptyTemplateForm = { id: null, title: "", content: "" };
+const emptyMaterialForm = { id: null, title: "", content: "", link: "" };
 const fieldCls =
   "mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-brand-500";
 
 export default function B2bCenterPage() {
   const { isAdmin } = useAuth();
   const [searchParams] = useSearchParams();
-  const [mode, setMode] = useState(() =>
-    searchParams.get("tab") === "silabus" ? "silabus" : "deals"
-  );
+  const [mode, setMode] = useState(() => {
+    const tab = searchParams.get("tab");
+    return VALID_MODES.has(tab) ? tab : "deals";
+  });
   const [msg, setMsg] = useState(null); // { ok, text }
 
   // ── Deals ───────────────────────────────────────────────────────
@@ -262,6 +279,100 @@ export default function B2bCenterPage() {
     }
   };
 
+  // ── Bahan ajar (katalog berdiri sendiri, mirip silabus) ─────────
+  const [materials, setMaterials] = useState([]);
+  const [matStatus, setMatStatus] = useState("loading"); // loading | error | ready
+  const [matBusyId, setMatBusyId] = useState(null);
+  const [qMat, setQMat] = useState("");
+
+  const [matForm, setMatForm] = useState(emptyMaterialForm);
+  const [showMatForm, setShowMatForm] = useState(false);
+  const [matFormError, setMatFormError] = useState("");
+  const [matSaving, setMatSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    listMaterials()
+      .then((data) => {
+        if (!alive) return;
+        setMaterials(data);
+        setMatStatus("ready");
+      })
+      .catch((err) => {
+        if (!alive) return;
+        console.error("[b2b] gagal memuat bahan ajar:", err);
+        setMatStatus("error");
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const filteredMaterials = useMemo(() => {
+    const needle = qMat.trim().toLowerCase();
+    if (!needle) return materials;
+    return materials.filter(
+      (r) =>
+        r.title.toLowerCase().includes(needle) ||
+        r.content.toLowerCase().includes(needle)
+    );
+  }, [materials, qMat]);
+
+  const setMF = (key, val) => setMatForm((f) => ({ ...f, [key]: val }));
+
+  const openMatCreate = () => {
+    setMatForm(emptyMaterialForm);
+    setMatFormError("");
+    setShowMatForm(true);
+  };
+  const openMatEdit = (r, e) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    setMatForm({ id: r.id, title: r.title, content: r.content, link: r.link ?? "" });
+    setMatFormError("");
+    setShowMatForm(true);
+  };
+
+  const handleMatSave = async (e) => {
+    e.preventDefault();
+    setMatFormError("");
+    if (!matForm.title.trim()) {
+      setMatFormError("Judul wajib diisi.");
+      return;
+    }
+    setMatSaving(true);
+    try {
+      if (matForm.id) {
+        const updated = await updateMaterial(matForm.id, matForm);
+        setMaterials((p) => p.map((r) => (r.id === updated.id ? updated : r)));
+      } else {
+        const created = await createMaterial(matForm, null);
+        setMaterials((p) => [created, ...p]);
+      }
+      setShowMatForm(false);
+      setMsg({ ok: true, text: "Tersimpan." });
+    } catch (err) {
+      setMatFormError(err?.message ?? "Gagal menyimpan.");
+    } finally {
+      setMatSaving(false);
+    }
+  };
+
+  const handleMatDelete = async (r, e) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (!window.confirm(`Hapus bahan ajar "${r.title}"?`)) return;
+    setMatBusyId(r.id);
+    try {
+      await deleteMaterial(r.id);
+      setMaterials((p) => p.filter((x) => x.id !== r.id));
+    } catch (err) {
+      window.alert(`Gagal menghapus: ${err?.message ?? err}`);
+    } finally {
+      setMatBusyId(null);
+    }
+  };
+
   return (
     <div className="mx-auto flex max-w-[980px] flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -272,7 +383,9 @@ export default function B2bCenterPage() {
           <p className="mt-1 text-xs leading-relaxed text-zinc-500">
             {mode === "deals"
               ? "Project B2B — klien, paket yang deal, dan silabusnya."
-              : "Template silabus (markdown) — bikin di sini, nanti tinggal di-insert ke project."}
+              : mode === "silabus"
+                ? "Template silabus (markdown) — bikin di sini, nanti tinggal di-insert ke project."
+                : "Katalog bahan ajar (markdown + link opsional) — referensi berdiri sendiri, nggak terikat project."}
           </p>
         </div>
         <SegmentedControl options={MODES} value={mode} onChange={setMode} />
@@ -309,7 +422,7 @@ export default function B2bCenterPage() {
             </button>
           )}
         </div>
-      ) : (
+      ) : mode === "silabus" ? (
         <div className="flex items-center gap-2">
           <div className="relative flex-1 sm:max-w-xs">
             <Search
@@ -329,6 +442,29 @@ export default function B2bCenterPage() {
               className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-600 sm:ml-auto"
             >
               <Plus size={14} strokeWidth={2.6} /> Tambah silabus
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
+            />
+            <input
+              value={qMat}
+              onChange={(e) => setQMat(e.target.value)}
+              placeholder="Cari judul / isi…"
+              className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-sm text-zinc-700 outline-none transition-colors placeholder:text-zinc-400 focus:border-brand-500 focus:bg-white"
+            />
+          </div>
+          {isAdmin && (
+            <button
+              onClick={openMatCreate}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-600 sm:ml-auto"
+            >
+              <Plus size={14} strokeWidth={2.6} /> Tambah bahan ajar
             </button>
           )}
         </div>
@@ -475,6 +611,63 @@ export default function B2bCenterPage() {
         </form>
       </Modal>
 
+      {/* Form tambah / edit bahan ajar */}
+      <Modal
+        open={showMatForm}
+        onClose={() => setShowMatForm(false)}
+        title={matForm.id ? "Ubah bahan ajar" : "Bahan ajar baru"}
+      >
+        <form onSubmit={handleMatSave} className="flex flex-col gap-3">
+          <label className="block text-xs font-medium text-zinc-600">
+            Judul
+            <input
+              value={matForm.title}
+              onChange={(e) => setMF("title", e.target.value)}
+              placeholder="mis. Modul Fungsi Kuadrat"
+              className={fieldCls}
+            />
+          </label>
+          <label className="block text-xs font-medium text-zinc-600">
+            Link (opsional)
+            <input
+              value={matForm.link}
+              onChange={(e) => setMF("link", e.target.value)}
+              placeholder="https://drive.google.com/…"
+              className={fieldCls}
+            />
+          </label>
+          <label className="block text-xs font-medium text-zinc-600">
+            Isi (markdown)
+            <textarea
+              value={matForm.content}
+              onChange={(e) => setMF("content", e.target.value)}
+              rows={12}
+              placeholder={"## Ringkasan\n- Poin 1\n- Poin 2"}
+              className={`${fieldCls} scroll-slim font-mono text-xs`}
+            />
+          </label>
+
+          {matFormError && <p className="text-xs text-rose-600">{matFormError}</p>}
+
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="submit"
+              disabled={matSaving}
+              className="rounded-lg bg-brand-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-50"
+            >
+              {matSaving ? "Menyimpan…" : "Simpan"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowMatForm(false)}
+              className="rounded-lg px-4 py-2 text-xs font-semibold text-zinc-600 transition-colors hover:bg-zinc-100"
+            >
+              Batal
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Isi */}
       {mode === "deals" ? (
         status === "loading" ? (
@@ -565,7 +758,8 @@ export default function B2bCenterPage() {
             })}
           </div>
         )
-      ) : tplStatus === "loading" ? (
+      ) : mode === "silabus" ? (
+        tplStatus === "loading" ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-28 w-full rounded-2xl" />
@@ -615,6 +809,71 @@ export default function B2bCenterPage() {
                   </span>
                 )}
               </div>
+              {r.content && (
+                <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs leading-relaxed text-zinc-500">
+                  {r.content}
+                </p>
+              )}
+            </Link>
+          ))}
+        </div>
+        )
+      ) : matStatus === "loading" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+          ))}
+        </div>
+      ) : matStatus === "error" ? (
+        <p className="rounded-2xl border border-dashed border-rose-300 bg-white px-6 py-12 text-center text-sm text-rose-500">
+          Gagal memuat data.
+        </p>
+      ) : materials.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm text-zinc-400">
+          Belum ada bahan ajar{isAdmin ? ". Tambah satu." : "."}
+        </p>
+      ) : filteredMaterials.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm text-zinc-400">
+          Nggak ada yang cocok.
+        </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {filteredMaterials.map((r) => (
+            <Link
+              key={r.id}
+              to={`/b2b/materi/${r.id}`}
+              className="group flex flex-col rounded-2xl border border-zinc-200/80 bg-white p-4 transition-shadow hover:shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-semibold leading-snug text-zinc-900">
+                  {r.title || "Tanpa judul"}
+                </p>
+                {isAdmin && (
+                  <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      onClick={(e) => openMatEdit(r, e)}
+                      aria-label="Ubah"
+                      className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      onClick={(e) => handleMatDelete(r, e)}
+                      disabled={matBusyId === r.id}
+                      aria-label="Hapus"
+                      className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </span>
+                )}
+              </div>
+              {r.link && (
+                <p className="mt-1 flex items-center gap-1 truncate text-xs font-medium text-brand-600">
+                  <Link2 size={11} className="shrink-0" />
+                  <span className="truncate">{r.link}</span>
+                </p>
+              )}
               {r.content && (
                 <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs leading-relaxed text-zinc-500">
                   {r.content}

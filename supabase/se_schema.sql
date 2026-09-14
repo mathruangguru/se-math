@@ -692,6 +692,37 @@ create policy "se_syllabus write admin"
   on public.se_syllabus for all
   using (public.se_is_admin()) with check (public.se_is_admin());
 
+-- ── se_b2b_material: bahan ajar B2B (katalog berdiri sendiri) ──────
+-- Mirip se_syllabus: isinya markdown, + `link` opsional (mis. ke Drive /
+-- PDF / slide / video). Nggak terikat ke project tertentu — murni katalog
+-- referensi. Semua yang login lihat, admin doang yang kelola.
+
+create table if not exists public.se_b2b_material (
+  id         uuid primary key default gen_random_uuid(),
+  title      text not null default '',
+  content    text not null default '',
+  link       text not null default '',
+  created_by uuid references public.se_profile (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+create index if not exists se_b2b_material_created_idx
+  on public.se_b2b_material (created_at desc);
+
+alter table public.se_b2b_material enable row level security;
+
+grant select, insert, update, delete on public.se_b2b_material to authenticated;
+grant all on public.se_b2b_material to service_role;
+
+drop policy if exists "se_b2b_material read" on public.se_b2b_material;
+create policy "se_b2b_material read"
+  on public.se_b2b_material for select using (auth.uid() is not null);
+
+drop policy if exists "se_b2b_material write admin" on public.se_b2b_material;
+create policy "se_b2b_material write admin"
+  on public.se_b2b_material for all
+  using (public.se_is_admin()) with check (public.se_is_admin());
+
 -- ── Bootstrap admin pertama ─────────────────────────────────────────
 -- User-nya harus sudah ada di auth.users (pernah login coaching-math, atau
 -- dibuat lewat Authentication -> Users -> Add user). Ganti email, uncomment,
