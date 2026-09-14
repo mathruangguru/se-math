@@ -121,8 +121,8 @@ Dua tab (segmented control di kanan atas):
   (Berjalan / Selesai / Batal) + tanggal mulai + catatan. Klik project
   → halaman detailnya, ada kolom **silabus** (markdown, di kolom
   `se_b2b_project.syllabus`) yang di-render pakai komponen `Markdown`
-  (headers/list/tabel/bold — bukan HTML asli, jadi aman dari script
-  nyelip).
+  (headers/list & checklist/tabel/blockquote/hr/kode/link/bold/italic/coret
+  — bukan HTML asli, jadi aman dari script nyelip).
 - **Silabus** — library template silabus (`se_syllabus`), **isinya
   markdown polos**, dibikin duluan lepas dari deal mana pun. Grid kartu
   (preview isi 3 baris) → klik → modal detail (markdown ke-render). Deep

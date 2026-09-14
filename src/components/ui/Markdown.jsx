@@ -1,17 +1,61 @@
-// Renderer markdown minimal — headers (#/##/###), list (-/*/1.), tabel
-// (| a | b |), bold (**x**), italic (*x*), paragraf. Semua jadi elemen
-// React biasa (bukan dangerouslySetInnerHTML), jadi aman dari HTML/script
-// nyelip di teks. Nggak lengkap kayak markdown beneran, tapi cukup buat
-// dokumen silabus.
+// Renderer markdown minimal — headers (#/##/###), list (-/*/1., termasuk
+// checklist [ ]/[x]), tabel (| a | b |), blockquote (> x), horizontal rule
+// (---), kode inline (`x`) & blok (```), link ([x](url)), bold (**x**),
+// italic (*x*), coret (~~x~~), paragraf. Semua jadi elemen React biasa
+// (bukan dangerouslySetInnerHTML), jadi aman dari HTML/script nyelip di
+// teks. Nggak lengkap kayak markdown beneran, tapi cukup buat dokumen
+// silabus.
+
+const SAFE_URL_RE = /^(https?:|mailto:)/i;
+
+const INLINE_RE =
+  /(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|\[[^\]]+\]\([^)]+\)|\*[^*]+\*)/g;
 
 function renderInline(text, keyPrefix) {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  const parts = text.split(INLINE_RE);
   return parts.map((part, i) => {
+    if (!part) return null;
+    const key = `${keyPrefix}-${i}`;
+
+    if (part.startsWith("`") && part.endsWith("`") && part.length >= 2) {
+      return (
+        <code
+          key={key}
+          className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-[0.85em] text-zinc-800"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
     if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={`${keyPrefix}-${i}`}>{part.slice(2, -2)}</strong>;
+      return <strong key={key}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("__") && part.endsWith("__")) {
+      return <strong key={key}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("~~") && part.endsWith("~~")) {
+      return <del key={key}>{part.slice(2, -2)}</del>;
+    }
+    const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (link) {
+      const url = link[2].trim();
+      if (SAFE_URL_RE.test(url)) {
+        return (
+          <a
+            key={key}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-brand-600 underline underline-offset-2"
+          >
+            {link[1]}
+          </a>
+        );
+      }
+      return part;
     }
     if (part.startsWith("*") && part.endsWith("*")) {
-      return <em key={`${keyPrefix}-${i}`}>{part.slice(1, -1)}</em>;
+      return <em key={key}>{part.slice(1, -1)}</em>;
     }
     return part;
   });
@@ -39,6 +83,7 @@ function parseBlocks(text) {
   const blocks = [];
   let list = null; // { type: "ul" | "ol", items: [] }
   let para = [];
+  let quote = null; // string[]
 
   const flushPara = () => {
     if (para.length) {
@@ -52,21 +97,43 @@ function parseBlocks(text) {
       list = null;
     }
   };
+  const flushQuote = () => {
+    if (quote) {
+      blocks.push({ type: "blockquote", lines: quote });
+      quote = null;
+    }
+  };
+  const flushAll = () => {
+    flushPara();
+    flushList();
+    flushQuote();
+  };
 
   let i = 0;
   while (i < lines.length) {
     const line = lines[i].trimEnd();
 
     if (!line.trim()) {
-      flushPara();
-      flushList();
+      flushAll();
       i += 1;
       continue;
     }
 
+    if (/^```/.test(line.trim())) {
+      flushAll();
+      i += 1;
+      const codeLines = [];
+      while (i < lines.length && !/^```/.test(lines[i].trim())) {
+        codeLines.push(lines[i]);
+        i += 1;
+      }
+      i += 1; // lewatin baris penutup ```
+      blocks.push({ type: "code", text: codeLines.join("\n") });
+      continue;
+    }
+
     if (isTableRow(line) && i + 1 < lines.length && isSeparatorRow(lines[i + 1])) {
-      flushPara();
-      flushList();
+      flushAll();
       const header = splitRow(line);
       i += 2; // lewatin header + baris pemisah
       const rows = [];
@@ -78,11 +145,27 @@ function parseBlocks(text) {
       continue;
     }
 
+    if (/^(-{3,}|_{3,}|\*{3,})$/.test(line.trim())) {
+      flushAll();
+      blocks.push({ type: "hr" });
+      i += 1;
+      continue;
+    }
+
     const h = line.match(/^(#{1,3})\s+(.*)$/);
     if (h) {
+      flushAll();
+      blocks.push({ type: `h${h[1].length}`, text: h[2] });
+      i += 1;
+      continue;
+    }
+
+    const bq = line.match(/^>\s?(.*)$/);
+    if (bq) {
       flushPara();
       flushList();
-      blocks.push({ type: `h${h[1].length}`, text: h[2] });
+      if (!quote) quote = [];
+      quote.push(bq[1]);
       i += 1;
       continue;
     }
@@ -90,11 +173,15 @@ function parseBlocks(text) {
     const ul = line.match(/^[-*]\s+(.*)$/);
     if (ul) {
       flushPara();
+      flushQuote();
       if (!list || list.type !== "ul") {
         flushList();
         list = { type: "ul", items: [] };
       }
-      list.items.push(ul[1]);
+      const task = ul[1].match(/^\[([ xX])\]\s+(.*)$/);
+      list.items.push(
+        task ? { text: task[2], checked: task[1].toLowerCase() === "x" } : { text: ul[1], checked: null },
+      );
       i += 1;
       continue;
     }
@@ -102,21 +189,22 @@ function parseBlocks(text) {
     const ol = line.match(/^\d+[.)]\s+(.*)$/);
     if (ol) {
       flushPara();
+      flushQuote();
       if (!list || list.type !== "ol") {
         flushList();
         list = { type: "ol", items: [] };
       }
-      list.items.push(ol[1]);
+      list.items.push({ text: ol[1], checked: null });
       i += 1;
       continue;
     }
 
     flushList();
+    flushQuote();
     para.push(line.trim());
     i += 1;
   }
-  flushPara();
-  flushList();
+  flushAll();
   return blocks;
 }
 
@@ -125,6 +213,27 @@ const H_CLS = {
   h2: "mt-3 text-sm font-bold text-zinc-900 first:mt-0",
   h3: "mt-2.5 text-sm font-semibold text-zinc-800 first:mt-0",
 };
+
+function ListItems({ items, blockIdx }) {
+  return items.map((it, j) => (
+    <li
+      key={j}
+      className={it.checked !== null ? "flex list-none items-start gap-2 -ml-5" : undefined}
+    >
+      {it.checked !== null && (
+        <input
+          type="checkbox"
+          checked={it.checked}
+          disabled
+          className="mt-1 h-3.5 w-3.5 shrink-0 rounded border-zinc-300"
+        />
+      )}
+      <span className={it.checked ? "text-zinc-400 line-through" : undefined}>
+        {renderInline(it.text, `${blockIdx}-${j}`)}
+      </span>
+    </li>
+  ));
+}
 
 export default function Markdown({ text, className = "" }) {
   const blocks = parseBlocks(text);
@@ -147,9 +256,7 @@ export default function Markdown({ text, className = "" }) {
               key={i}
               className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm leading-relaxed text-zinc-700 first:mt-0"
             >
-              {b.items.map((it, j) => (
-                <li key={j}>{renderInline(it, `${i}-${j}`)}</li>
-              ))}
+              <ListItems items={b.items} blockIdx={i} />
             </ul>
           );
         }
@@ -159,10 +266,35 @@ export default function Markdown({ text, className = "" }) {
               key={i}
               className="mt-1.5 list-decimal space-y-0.5 pl-5 text-sm leading-relaxed text-zinc-700 first:mt-0"
             >
-              {b.items.map((it, j) => (
-                <li key={j}>{renderInline(it, `${i}-${j}`)}</li>
-              ))}
+              <ListItems items={b.items} blockIdx={i} />
             </ol>
+          );
+        }
+        if (b.type === "blockquote") {
+          return (
+            <blockquote
+              key={i}
+              className="mt-2 border-l-2 border-zinc-300 pl-3 text-sm italic leading-relaxed text-zinc-500 first:mt-0"
+            >
+              {b.lines.map((l, j) => (
+                <p key={j} className={j > 0 ? "mt-1" : undefined}>
+                  {renderInline(l, `${i}-${j}`)}
+                </p>
+              ))}
+            </blockquote>
+          );
+        }
+        if (b.type === "hr") {
+          return <hr key={i} className="my-3 border-zinc-200" />;
+        }
+        if (b.type === "code") {
+          return (
+            <pre
+              key={i}
+              className="scroll-slim mt-2 overflow-x-auto rounded-lg bg-zinc-900 p-3 text-xs leading-relaxed text-zinc-100 first:mt-0"
+            >
+              <code>{b.text}</code>
+            </pre>
           );
         }
         if (b.type === "table") {
