@@ -547,6 +547,90 @@ create policy "se_potential_work write member"
   on public.se_potential_work for all
   using (public.se_is_member()) with check (public.se_is_member());
 
+-- ── se_b2b_project: project B2B (klien + paket yang deal) ──────────
+-- Semua yang login lihat. CRUD project & silabus cuma admin; centang
+-- silabus (materi sudah diajarkan) boleh member biasa lewat RPC.
+
+create table if not exists public.se_b2b_project (
+  id          uuid primary key default gen_random_uuid(),
+  client_name text not null default '',
+  package     text not null default '',
+  status      text not null default 'berjalan'
+              check (status in ('berjalan', 'selesai', 'batal')),
+  start_date  date,
+  note        text not null default '',
+  created_by  uuid references public.se_profile (id) on delete set null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz
+);
+create index if not exists se_b2b_project_status_idx
+  on public.se_b2b_project (status);
+
+alter table public.se_b2b_project enable row level security;
+
+grant select, insert, update, delete on public.se_b2b_project to authenticated;
+grant all on public.se_b2b_project to service_role;
+
+drop policy if exists "se_b2b_project read" on public.se_b2b_project;
+create policy "se_b2b_project read"
+  on public.se_b2b_project for select using (auth.uid() is not null);
+
+drop policy if exists "se_b2b_project write admin" on public.se_b2b_project;
+create policy "se_b2b_project write admin"
+  on public.se_b2b_project for all
+  using (public.se_is_admin()) with check (public.se_is_admin());
+
+-- ── se_b2b_syllabus: silabus per project (urutan topik) ────────────
+
+create table if not exists public.se_b2b_syllabus (
+  id         uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.se_b2b_project (id) on delete cascade,
+  position   integer not null default 0,
+  topic      text not null default '',
+  detail     text not null default '',
+  done       boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+create index if not exists se_b2b_syllabus_project_idx
+  on public.se_b2b_syllabus (project_id, position);
+
+alter table public.se_b2b_syllabus enable row level security;
+
+grant select, insert, update, delete on public.se_b2b_syllabus to authenticated;
+grant all on public.se_b2b_syllabus to service_role;
+
+drop policy if exists "se_b2b_syllabus read" on public.se_b2b_syllabus;
+create policy "se_b2b_syllabus read"
+  on public.se_b2b_syllabus for select using (auth.uid() is not null);
+
+drop policy if exists "se_b2b_syllabus write admin" on public.se_b2b_syllabus;
+create policy "se_b2b_syllabus write admin"
+  on public.se_b2b_syllabus for all
+  using (public.se_is_admin()) with check (public.se_is_admin());
+
+-- Member biasa boleh centang / uncentang silabus (materi udah diajarkan).
+create or replace function public.se_b2b_syllabus_set_done(p_id uuid, p_done boolean)
+returns public.se_b2b_syllabus
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_row public.se_b2b_syllabus%rowtype;
+begin
+  if not exists (select 1 from public.se_profile where id = auth.uid()) then
+    raise exception 'Bukan member.' using errcode = '42501';
+  end if;
+  update public.se_b2b_syllabus
+     set done = p_done, updated_at = now()
+   where id = p_id
+   returning * into v_row;
+  return v_row;
+end;
+$$;
+grant execute on function public.se_b2b_syllabus_set_done(uuid, boolean) to authenticated;
+
 -- ── Bootstrap admin pertama ─────────────────────────────────────────
 -- User-nya harus sudah ada di auth.users (pernah login coaching-math, atau
 -- dibuat lewat Authentication -> Users -> Add user). Ganti email, uncomment,

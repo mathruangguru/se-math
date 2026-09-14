@@ -10,6 +10,8 @@ import LinkPage from "./pages/LinkPage";
 import JokesPage from "./pages/JokesPage";
 import ManpowerPage from "./pages/ManpowerPage";
 import PotentialWorkPage from "./pages/PotentialWorkPage";
+import B2bCenterPage from "./pages/B2bCenterPage";
+import B2bProjectPage from "./pages/B2bProjectPage";
 import HyperlistAdminPage from "./pages/admin/HyperlistAdminPage";
 import LinkAdminPage from "./pages/admin/LinkAdminPage";
 import UsersAdminPage from "./pages/admin/UsersAdminPage";
@@ -29,6 +31,8 @@ const App = () => {
           <Route path="/jokes" element={<JokesPage />} />
           <Route path="/manpower" element={<ManpowerPage />} />
           <Route path="/potential" element={<PotentialWorkPage />} />
+          <Route path="/b2b" element={<B2bCenterPage />} />
+          <Route path="/b2b/:id" element={<B2bProjectPage />} />
 
           <Route element={<RequireAdmin />}>
             <Route path="/admin/hyperlist" element={<HyperlistAdminPage />} />
