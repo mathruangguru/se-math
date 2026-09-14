@@ -35,6 +35,9 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
    - `se_b2b_material` + RLS — katalog bahan ajar B2B (markdown + link
      opsional), berdiri sendiri (nggak terikat project). Baca user login,
      tulis `se_is_admin()`.
+   - `se_b2b_question_need` + RLS — kebutuhan soal B2B (topik + jumlah +
+     tipe + status + deadline + catatan), list umum nggak terikat project.
+     Tabel bareng: semua yang login lihat, semua member isi/edit/hapus.
    - Re-run juga otomatis buang `se_b2b_syllabus` lama (tabel per-topik) —
      silabus sekarang teks markdown di kolom `se_b2b_project.syllabus`.
    - `se_task` (kolom `project_id` opsional → `se_b2b_project`) + `se_subtask`
@@ -79,12 +82,13 @@ hapus/turunkan role akun sendiri (trigger `se_profile_guard_self`).
 
 - User login tapi belum ada di `se_profile` → layar "Akun belum terdaftar".
 - `member` = bisa buka Dashboard / Task / Potential Work / Manpower /
-  B2B Center (tiga tab: Deals & Silabus & Bahan Ajar, lihat doang, kecuali
-  status task boleh diubah) / Hyperlist / Link / Pojok Jokes (di Manpower
-  cuma lihat laporan sendiri).
+  B2B Center (empat tab: Deals & Silabus & Bahan Ajar lihat doang kecuali
+  status task, Kebutuhan Soal bebas kelola) / Hyperlist / Link / Pojok
+  Jokes (di Manpower cuma lihat laporan sendiri).
 - `admin` = + rekap semua orang di Manpower, kelola project + milestone +
-  tanggal penting + task + silabus + bahan ajar B2B (ketiga tab),
-  `/admin/hyperlist`, `/admin/link` & `/admin/users`.
+  tanggal penting + task + silabus + bahan ajar B2B (Kebutuhan Soal sama
+  kayak member — bukan admin-only), `/admin/hyperlist`, `/admin/link` &
+  `/admin/users`.
 
 ## Isi data Hyperlist — `/admin/hyperlist`
 
@@ -128,7 +132,7 @@ baris — klik kartu buka modal detail. Tabel bareng (`se_potential_work`):
 
 ## B2B Center — `/b2b`
 
-Tiga tab (segmented control di kanan atas):
+Empat tab (segmented control di kanan atas):
 
 - **Deals** — project B2B: klien + **paket yang deal** + **kategori**
   (teks bebas, mis. "Pelatihan Guru") + status (Berjalan / Selesai /
@@ -155,6 +159,12 @@ Tiga tab (segmented control di kanan atas):
   Silabus tapi **berdiri sendiri** — bukan diinsert ke project mana pun,
   murni katalog referensi. Grid kartu (link + preview isi 3 baris) → klik →
   halaman detail sendiri (`/b2b/materi/:id`). Deep link: `/b2b?tab=materi`.
+- **Kebutuhan Soal** — daftar kebutuhan soal (`se_b2b_question_need`):
+  topik/materi + jumlah + tipe soal (teks bebas) + status (Belum / Proses
+  / Selesai, bisa diganti langsung di tabel) + deadline + catatan. List
+  umum, nggak terikat project. Tabel bareng — **semua yang login lihat,
+  semua member isi/edit/hapus** (murni policy, tanpa RPC, sama kayak
+  Potential Work). Deep link: `/b2b?tab=soal`.
 
 Di halaman detail sebuah project, admin bisa **"Insert dari silabus"**
 (pilih template dari tab Silabus, isinya ditambahin ke bawah silabus yang
@@ -162,8 +172,9 @@ ada) atau **"Edit"** (tulis/ubah manual di textarea).
 
 - **Admin**: kelola project + milestone + tanggal penting + task + template
   silabus + bahan ajar (tambah/ubah/hapus) + kelola silabus tiap project.
-- **Semua member**: lihat semuanya (read only), kecuali status task yang
-  boleh diubah semua member (sama kayak board Task).
+- **Semua member**: lihat semuanya (read only), kecuali status task (bisa
+  diubah semua member, sama kayak board Task) dan **Kebutuhan Soal** (bebas
+  tambah/ubah/hapus, sama kayak Potential Work).
 
 ## Pojok Jokes — `/jokes`
 
@@ -196,7 +207,7 @@ buat siapa aja** (rentang tanggal + catatan). Tampil sebagai panel
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_joke` + `se_daily_report` + `se_leave` + `se_potential_work` + `se_syllabus` + `se_b2b_project` (kolom `syllabus` markdown, `category` teks bebas) + `se_b2b_milestone` + `se_b2b_important_date` + `se_b2b_material` + `se_task` (kolom `project_id` opsional → `se_b2b_project`) / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_joke` + `se_daily_report` + `se_leave` + `se_potential_work` + `se_syllabus` + `se_b2b_project` (kolom `syllabus` markdown, `category` teks bebas) + `se_b2b_milestone` + `se_b2b_important_date` + `se_b2b_material` + `se_b2b_question_need` + `se_task` (kolom `project_id` opsional → `se_b2b_project`) / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 (list/create/update/delete/bulkCreate), `src/lib/links.js`
@@ -206,6 +217,7 @@ Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 `src/lib/potential.js` (potential work: list/create/update/delete),
 `src/lib/syllabus.js` (template silabus: list/create/update/delete),
 `src/lib/materials.js` (bahan ajar B2B: list/create/update/delete),
+`src/lib/questionNeeds.js` (kebutuhan soal B2B: list/create/update/delete),
 `src/lib/b2b.js` (project B2B: list/create/update/delete +
 `updateProjectSyllabus` + milestone: list/create/update/`setMilestoneDone`/delete
 + tanggal penting: list/create/update/delete), `src/components/ui/Markdown.jsx`

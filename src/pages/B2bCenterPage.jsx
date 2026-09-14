@@ -31,11 +31,18 @@ import {
   updateMaterial,
   deleteMaterial,
 } from "../lib/materials";
+import {
+  listQuestionNeeds,
+  createQuestionNeed,
+  updateQuestionNeed,
+  deleteQuestionNeed,
+} from "../lib/questionNeeds";
 
 const MODES = [
   { value: "deals", label: "Deals" },
   { value: "silabus", label: "Silabus" },
   { value: "materi", label: "Bahan Ajar" },
+  { value: "soal", label: "Kebutuhan Soal" },
 ];
 const VALID_MODES = new Set(MODES.map((m) => m.value));
 
@@ -45,6 +52,14 @@ const STATUSES = [
   { value: "batal", label: "Batal", cls: "bg-zinc-100 text-zinc-500" },
 ];
 const statusMeta = (v) => STATUSES.find((s) => s.value === v) ?? STATUSES[0];
+
+const NEED_STATUSES = [
+  { value: "belum", label: "Belum", cls: "bg-zinc-100 text-zinc-600" },
+  { value: "proses", label: "Proses", cls: "bg-sky-100 text-sky-700" },
+  { value: "selesai", label: "Selesai", cls: "bg-teal-100 text-teal-700" },
+];
+const needStatusMeta = (v) =>
+  NEED_STATUSES.find((s) => s.value === v) ?? NEED_STATUSES[0];
 
 const emptyProjectForm = {
   id: null,
@@ -57,11 +72,21 @@ const emptyProjectForm = {
 };
 const emptyTemplateForm = { id: null, title: "", content: "" };
 const emptyMaterialForm = { id: null, title: "", content: "", link: "" };
+const emptyNeedForm = {
+  id: null,
+  topic: "",
+  qty: "",
+  question_type: "",
+  status: "belum",
+  deadline: "",
+  note: "",
+};
 const fieldCls =
   "mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none transition-colors focus:border-brand-500";
 
 export default function B2bCenterPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, profile } = useAuth();
+  const myId = profile?.id ?? null;
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState(() => {
     const tab = searchParams.get("tab");
@@ -373,6 +398,122 @@ export default function B2bCenterPage() {
     }
   };
 
+  // ── Kebutuhan soal (list umum, semua member kelola) ─────────────
+  const [needs, setNeeds] = useState([]);
+  const [needsStatus, setNeedsStatus] = useState("loading"); // loading | error | ready
+  const [needBusyId, setNeedBusyId] = useState(null);
+  const [qNeed, setQNeed] = useState("");
+
+  const [needForm, setNeedForm] = useState(emptyNeedForm);
+  const [showNeedForm, setShowNeedForm] = useState(false);
+  const [needFormError, setNeedFormError] = useState("");
+  const [needSaving, setNeedSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    listQuestionNeeds()
+      .then((data) => {
+        if (!alive) return;
+        setNeeds(data);
+        setNeedsStatus("ready");
+      })
+      .catch((err) => {
+        if (!alive) return;
+        console.error("[b2b] gagal memuat kebutuhan soal:", err);
+        setNeedsStatus("error");
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const filteredNeeds = useMemo(() => {
+    const needle = qNeed.trim().toLowerCase();
+    if (!needle) return needs;
+    return needs.filter(
+      (r) =>
+        r.topic.toLowerCase().includes(needle) ||
+        r.question_type.toLowerCase().includes(needle) ||
+        r.note.toLowerCase().includes(needle)
+    );
+  }, [needs, qNeed]);
+
+  const setNF = (key, val) => setNeedForm((f) => ({ ...f, [key]: val }));
+
+  const openNeedCreate = () => {
+    setNeedForm(emptyNeedForm);
+    setNeedFormError("");
+    setShowNeedForm(true);
+  };
+  const openNeedEdit = (r) => {
+    setNeedForm({
+      id: r.id,
+      topic: r.topic,
+      qty: String(r.qty ?? ""),
+      question_type: r.question_type,
+      status: r.status,
+      deadline: r.deadline ?? "",
+      note: r.note,
+    });
+    setNeedFormError("");
+    setShowNeedForm(true);
+  };
+
+  const handleNeedSave = async (e) => {
+    e.preventDefault();
+    setNeedFormError("");
+    if (!needForm.topic.trim()) {
+      setNeedFormError("Topik wajib diisi.");
+      return;
+    }
+    setNeedSaving(true);
+    try {
+      if (needForm.id) {
+        const updated = await updateQuestionNeed(needForm.id, needForm);
+        setNeeds((p) => p.map((r) => (r.id === updated.id ? updated : r)));
+      } else {
+        const created = await createQuestionNeed(needForm, myId);
+        setNeeds((p) => [created, ...p]);
+      }
+      setShowNeedForm(false);
+      setMsg({ ok: true, text: "Tersimpan." });
+    } catch (err) {
+      setNeedFormError(err?.message ?? "Gagal menyimpan.");
+    } finally {
+      setNeedSaving(false);
+    }
+  };
+
+  const handleNeedDelete = async (r) => {
+    if (!window.confirm(`Hapus kebutuhan soal "${r.topic}"?`)) return;
+    setNeedBusyId(r.id);
+    try {
+      await deleteQuestionNeed(r.id);
+      setNeeds((p) => p.filter((x) => x.id !== r.id));
+    } catch (err) {
+      window.alert(`Gagal menghapus: ${err?.message ?? err}`);
+    } finally {
+      setNeedBusyId(null);
+    }
+  };
+
+  const handleNeedStatusChange = async (r, next) => {
+    if (next === r.status) return;
+    setNeedBusyId(r.id);
+    const prevStatus = r.status;
+    setNeeds((p) => p.map((x) => (x.id === r.id ? { ...x, status: next } : x)));
+    try {
+      await updateQuestionNeed(r.id, { ...r, status: next });
+    } catch (err) {
+      setNeeds((p) =>
+        p.map((x) => (x.id === r.id ? { ...x, status: prevStatus } : x))
+      );
+      window.alert(`Gagal ganti status: ${err?.message ?? err}`);
+    } finally {
+      setNeedBusyId(null);
+    }
+  };
+
   return (
     <div className="mx-auto flex max-w-[980px] flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -385,7 +526,9 @@ export default function B2bCenterPage() {
               ? "Project B2B — klien, paket yang deal, dan silabusnya."
               : mode === "silabus"
                 ? "Template silabus (markdown) — bikin di sini, nanti tinggal di-insert ke project."
-                : "Katalog bahan ajar (markdown + link opsional) — referensi berdiri sendiri, nggak terikat project."}
+                : mode === "materi"
+                  ? "Katalog bahan ajar (markdown + link opsional) — referensi berdiri sendiri, nggak terikat project."
+                  : "Daftar kebutuhan soal — topik, jumlah, tipe, dan status. Semua member boleh isi & kelola."}
           </p>
         </div>
         <SegmentedControl options={MODES} value={mode} onChange={setMode} />
@@ -445,7 +588,7 @@ export default function B2bCenterPage() {
             </button>
           )}
         </div>
-      ) : (
+      ) : mode === "materi" ? (
         <div className="flex items-center gap-2">
           <div className="relative flex-1 sm:max-w-xs">
             <Search
@@ -467,6 +610,27 @@ export default function B2bCenterPage() {
               <Plus size={14} strokeWidth={2.6} /> Tambah bahan ajar
             </button>
           )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
+            />
+            <input
+              value={qNeed}
+              onChange={(e) => setQNeed(e.target.value)}
+              placeholder="Cari topik / tipe…"
+              className="h-9 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-sm text-zinc-700 outline-none transition-colors placeholder:text-zinc-400 focus:border-brand-500 focus:bg-white"
+            />
+          </div>
+          <button
+            onClick={openNeedCreate}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-600 sm:ml-auto"
+          >
+            <Plus size={14} strokeWidth={2.6} /> Tambah kebutuhan
+          </button>
         </div>
       )}
 
@@ -668,6 +832,101 @@ export default function B2bCenterPage() {
         </form>
       </Modal>
 
+      {/* Form tambah / edit kebutuhan soal */}
+      <Modal
+        open={showNeedForm}
+        onClose={() => setShowNeedForm(false)}
+        title={needForm.id ? "Ubah kebutuhan soal" : "Kebutuhan soal baru"}
+      >
+        <form onSubmit={handleNeedSave} className="flex flex-col gap-3">
+          <label className="block text-xs font-medium text-zinc-600">
+            Topik / materi
+            <input
+              value={needForm.topic}
+              onChange={(e) => setNF("topic", e.target.value)}
+              placeholder="mis. Fungsi Kuadrat kelas 10"
+              className={fieldCls}
+            />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs font-medium text-zinc-600">
+              Jumlah soal
+              <input
+                type="number"
+                min="0"
+                value={needForm.qty}
+                onChange={(e) => setNF("qty", e.target.value)}
+                placeholder="0"
+                className={fieldCls}
+              />
+            </label>
+            <label className="block text-xs font-medium text-zinc-600">
+              Tipe soal
+              <input
+                value={needForm.question_type}
+                onChange={(e) => setNF("question_type", e.target.value)}
+                placeholder="mis. Pilihan ganda"
+                className={fieldCls}
+              />
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-xs font-medium text-zinc-600">
+              Status
+              <select
+                value={needForm.status}
+                onChange={(e) => setNF("status", e.target.value)}
+                className={fieldCls}
+              >
+                {NEED_STATUSES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs font-medium text-zinc-600">
+              Deadline
+              <input
+                type="date"
+                value={needForm.deadline}
+                onChange={(e) => setNF("deadline", e.target.value)}
+                className={fieldCls}
+              />
+            </label>
+          </div>
+          <label className="block text-xs font-medium text-zinc-600">
+            Catatan
+            <textarea
+              value={needForm.note}
+              onChange={(e) => setNF("note", e.target.value)}
+              rows={3}
+              placeholder="Konteks tambahan, PIC, dsb…"
+              className={fieldCls}
+            />
+          </label>
+
+          {needFormError && <p className="text-xs text-rose-600">{needFormError}</p>}
+
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="submit"
+              disabled={needSaving}
+              className="rounded-lg bg-brand-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-50"
+            >
+              {needSaving ? "Menyimpan…" : "Simpan"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowNeedForm(false)}
+              className="rounded-lg px-4 py-2 text-xs font-semibold text-zinc-600 transition-colors hover:bg-zinc-100"
+            >
+              Batal
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Isi */}
       {mode === "deals" ? (
         status === "loading" ? (
@@ -818,7 +1077,8 @@ export default function B2bCenterPage() {
           ))}
         </div>
         )
-      ) : matStatus === "loading" ? (
+      ) : mode === "materi" ? (
+        matStatus === "loading" ? (
         <div className="grid gap-3 sm:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-28 w-full rounded-2xl" />
@@ -881,6 +1141,101 @@ export default function B2bCenterPage() {
               )}
             </Link>
           ))}
+        </div>
+        )
+      ) : needsStatus === "loading" ? (
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-14 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : needsStatus === "error" ? (
+        <p className="rounded-2xl border border-dashed border-rose-300 bg-white px-6 py-12 text-center text-sm text-rose-500">
+          Gagal memuat data.
+        </p>
+      ) : needs.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm text-zinc-400">
+          Belum ada kebutuhan soal. Tambah satu.
+        </p>
+      ) : filteredNeeds.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm text-zinc-400">
+          Nggak ada yang cocok.
+        </p>
+      ) : (
+        <div className="scroll-slim overflow-x-auto rounded-2xl border border-zinc-200/80 bg-white">
+          <table className="w-full min-w-[760px] border-collapse text-left">
+            <thead>
+              <tr className="bg-zinc-50 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                <th className="px-4 py-3">Topik</th>
+                <th className="px-4 py-3">Jumlah</th>
+                <th className="px-4 py-3">Tipe</th>
+                <th className="px-4 py-3">Deadline</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {filteredNeeds.map((r) => (
+                <tr
+                  key={r.id}
+                  className="border-t border-zinc-100 align-top transition-colors hover:bg-zinc-50"
+                >
+                  <td className="px-4 py-3">
+                    <p className="text-sm font-medium text-zinc-900">{r.topic}</p>
+                    {r.note && (
+                      <p className="mt-0.5 line-clamp-2 text-xs text-zinc-400">
+                        {r.note}
+                      </p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-zinc-700">
+                    {r.qty || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-zinc-700">
+                    {r.question_type || "—"}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-500">
+                    {r.deadline ? shortDate(r.deadline) : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={r.status}
+                      disabled={needBusyId === r.id}
+                      onChange={(e) => handleNeedStatusChange(r, e.target.value)}
+                      className={`rounded-lg border px-2 py-1 text-xs font-medium outline-none transition-colors focus:border-brand-500 disabled:opacity-50 ${
+                        needStatusMeta(r.status).cls
+                      } border-transparent`}
+                    >
+                      {NEED_STATUSES.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <span className="inline-flex items-center gap-0.5">
+                      <button
+                        onClick={() => openNeedEdit(r)}
+                        aria-label="Ubah"
+                        className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={() => handleNeedDelete(r)}
+                        disabled={needBusyId === r.id}
+                        aria-label="Hapus"
+                        className="inline-grid h-7 w-7 place-items-center rounded-lg text-zinc-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
