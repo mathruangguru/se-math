@@ -758,6 +758,65 @@ create policy "se_b2b_question_need write member"
   on public.se_b2b_question_need for all
   using (public.se_is_member()) with check (public.se_is_member());
 
+-- ── se_prompt: Bank Prompt (prompt AI/LLM tim) ─────────────────────
+-- Semua yang login lihat; semua member boleh nyumbang & ubah prompt siapa
+-- aja; hapus cuma punya sendiri (admin: siapa aja). `created_by` dikunci
+-- lewat trigger biar nggak bisa dialihin pas update — kalau bisa, aturan
+-- "hapus punya sendiri" gampang dilewatin.
+
+create table if not exists public.se_prompt (
+  id         uuid primary key default gen_random_uuid(),
+  title      text not null default '',
+  prompt     text not null default '',
+  category   text not null default '',
+  tool       text not null default '',
+  note       text not null default '',
+  created_by uuid references public.se_profile (id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
+);
+create index if not exists se_prompt_created_idx
+  on public.se_prompt (created_at desc);
+
+alter table public.se_prompt enable row level security;
+
+grant select, insert, update, delete on public.se_prompt to authenticated;
+grant all on public.se_prompt to service_role;
+
+drop policy if exists "se_prompt read" on public.se_prompt;
+create policy "se_prompt read"
+  on public.se_prompt for select using (auth.uid() is not null);
+
+drop policy if exists "se_prompt insert own" on public.se_prompt;
+create policy "se_prompt insert own"
+  on public.se_prompt for insert
+  with check (public.se_is_member() and created_by = auth.uid());
+
+drop policy if exists "se_prompt update member" on public.se_prompt;
+create policy "se_prompt update member"
+  on public.se_prompt for update
+  using (public.se_is_member()) with check (public.se_is_member());
+
+drop policy if exists "se_prompt delete own or admin" on public.se_prompt;
+create policy "se_prompt delete own or admin"
+  on public.se_prompt for delete
+  using (created_by = auth.uid() or public.se_is_admin());
+
+create or replace function public.se_prompt_keep_creator()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.created_by := old.created_by;
+  return new;
+end;
+$$;
+
+drop trigger if exists se_prompt_keep_creator on public.se_prompt;
+create trigger se_prompt_keep_creator
+  before update on public.se_prompt
+  for each row execute function public.se_prompt_keep_creator();
+
 -- ── Bootstrap admin pertama ─────────────────────────────────────────
 -- User-nya harus sudah ada di auth.users (pernah login coaching-math, atau
 -- dibuat lewat Authentication -> Users -> Add user). Ganti email, uncomment,

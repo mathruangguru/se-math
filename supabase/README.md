@@ -38,6 +38,10 @@ akses ke se-math, cuma yang punya baris `se_profile`. Semua tabel di-prefix
    - `se_b2b_question_need` + RLS — kebutuhan soal B2B (topik + jumlah +
      tipe + status + deadline + catatan), list umum nggak terikat project.
      Tabel bareng: semua yang login lihat, semua member isi/edit/hapus.
+   - `se_prompt` + RLS + trigger `se_prompt_keep_creator` — Bank Prompt (prompt
+     AI/LLM tim). Semua member nyumbang & ubah; hapus cuma punya sendiri
+     (admin: semua). Trigger ngunci `created_by` biar nggak bisa dialihin
+     lewat update.
    - Re-run juga otomatis buang `se_b2b_syllabus` lama (tabel per-topik) —
      silabus sekarang teks markdown di kolom `se_b2b_project.syllabus`.
    - `se_task` (kolom `project_id` opsional → `se_b2b_project`) + `se_subtask`
@@ -83,8 +87,8 @@ hapus/turunkan role akun sendiri (trigger `se_profile_guard_self`).
 - User login tapi belum ada di `se_profile` → layar "Akun belum terdaftar".
 - `member` = bisa buka Dashboard / Task / Potential Work / Manpower /
   B2B Center (empat tab: Deals & Silabus & Bahan Ajar lihat doang kecuali
-  status task, Kebutuhan Soal bebas kelola) / Hyperlist / Link / Pojok
-  Jokes (di Manpower cuma lihat laporan sendiri).
+  status task, Kebutuhan Soal bebas kelola) / Hyperlist / Link / Bank
+  Prompt / Pojok Jokes (di Manpower cuma lihat laporan sendiri).
 - `admin` = + rekap semua orang di Manpower, kelola project + milestone +
   tanggal penting + task + silabus + bahan ajar B2B (Kebutuhan Soal sama
   kayak member — bukan admin-only), `/admin/hyperlist`, `/admin/link` &
@@ -176,6 +180,21 @@ ada) atau **"Edit"** (tulis/ubah manual di textarea).
   diubah semua member, sama kayak board Task) dan **Kebutuhan Soal** (bebas
   tambah/ubah/hapus, sama kayak Potential Work).
 
+## Bank Prompt — `/prompt`
+
+Kumpulan **prompt AI/LLM tim** (`se_prompt`): judul + **isi prompt**
+(multi-baris) + **tool/model target** (teks bebas, mis. ChatGPT / Claude)
++ kategori (teks bebas, autocomplete dari kategori yang sudah ada) +
+catatan cara pakai (opsional). Grid kartu (preview isi 3 baris) dengan
+tombol **Salin** langsung di kartu; klik kartu → modal detail (isi
+lengkap + Salin / Ubah / Hapus). Search (judul/isi/tool/kategori/catatan) +
+filter kategori.
+
+- **Nyumbang & ubah**: semua member (ubah prompt siapa aja).
+- **Hapus**: cuma punya sendiri; admin bisa hapus siapa aja.
+- `created_by` dikunci trigger (`se_prompt_keep_creator`) — tanpa itu,
+  member bisa "ngambil alih" prompt orang lewat update lalu menghapusnya.
+
 ## Pojok Jokes — `/jokes`
 
 Flashcard tebak-tebakan: **depan** = tebakan, **belakang** = jawaban (klik
@@ -207,7 +226,7 @@ buat siapa aja** (rentang tanggal + catatan). Tampil sebagai panel
 
 | File | |
 | --- | --- |
-| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_joke` + `se_daily_report` + `se_leave` + `se_potential_work` + `se_syllabus` + `se_b2b_project` (kolom `syllabus` markdown, `category` teks bebas) + `se_b2b_milestone` + `se_b2b_important_date` + `se_b2b_material` + `se_b2b_question_need` + `se_task` (kolom `project_id` opsional → `se_b2b_project`) / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
+| `se_schema.sql` | `se_profile` + `se_is_admin()` / `se_is_member()` + `se_add_member()` + guard trigger + `se_hyperlist` + `se_link` + `se_joke` + `se_daily_report` + `se_leave` + `se_potential_work` + `se_syllabus` + `se_b2b_project` (kolom `syllabus` markdown, `category` teks bebas) + `se_b2b_milestone` + `se_b2b_important_date` + `se_b2b_material` + `se_b2b_question_need` + `se_prompt` (+ trigger `se_prompt_keep_creator`) + `se_task` (kolom `project_id` opsional → `se_b2b_project`) / `se_subtask` / `se_subtask_assignee` + `se_task_set_status()` / `se_subtask_set_done()` / `se_subtask_set_assignees()` + RLS |
 
 Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 (list/create/update/delete/bulkCreate), `src/lib/links.js`
@@ -218,6 +237,7 @@ Kode klien: `src/lib/supabase.js` (client), `src/lib/hyperlist.js`
 `src/lib/syllabus.js` (template silabus: list/create/update/delete),
 `src/lib/materials.js` (bahan ajar B2B: list/create/update/delete),
 `src/lib/questionNeeds.js` (kebutuhan soal B2B: list/create/update/delete),
+`src/lib/prompts.js` (bank prompt: list/create/update/delete),
 `src/lib/b2b.js` (project B2B: list/create/update/delete +
 `updateProjectSyllabus` + milestone: list/create/update/`setMilestoneDone`/delete
 + tanggal penting: list/create/update/delete), `src/components/ui/Markdown.jsx`
