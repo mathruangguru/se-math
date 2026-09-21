@@ -3,7 +3,6 @@ import { Check, Copy, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import Skeleton from "../components/ui/Skeleton";
 import Modal from "../components/ui/Modal";
 import { useAuth } from "../context/auth-context";
-import { listPeople, personShort } from "../lib/people";
 import {
   listPrompts,
   createPrompt,
@@ -47,7 +46,6 @@ export default function PromptBankPage() {
   const myId = profile?.id ?? null;
 
   const [rows, setRows] = useState([]);
-  const [people, setPeople] = useState([]);
   const [status, setStatus] = useState("loading"); // loading | error | ready
   const [msg, setMsg] = useState(null); // { ok, text }
   const [rowBusyId, setRowBusyId] = useState(null);
@@ -64,11 +62,10 @@ export default function PromptBankPage() {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([listPrompts(), listPeople().catch(() => [])])
-      .then(([r, p]) => {
+    listPrompts()
+      .then((r) => {
         if (!alive) return;
         setRows(r);
-        setPeople(p);
         setStatus("ready");
       })
       .catch((err) => {
@@ -80,12 +77,6 @@ export default function PromptBankPage() {
       alive = false;
     };
   }, []);
-
-  const personById = useMemo(() => {
-    const m = new Map();
-    for (const p of people) m.set(p.id, p);
-    return m;
-  }, [people]);
 
   const categories = useMemo(
     () =>
@@ -349,7 +340,6 @@ export default function PromptBankPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {filtered.map((r) => {
-            const by = r.created_by ? personById.get(r.created_by) : null;
             const copied = copiedId === r.id;
             return (
               <div
@@ -388,11 +378,6 @@ export default function PromptBankPage() {
                 <p className="mt-2 line-clamp-3 whitespace-pre-wrap rounded-lg bg-zinc-50 p-2 font-mono text-[11px] leading-relaxed text-zinc-600">
                   {r.prompt}
                 </p>
-                {by && (
-                  <p className="mt-2 text-xs text-zinc-400">
-                    — {personShort(by)}
-                  </p>
-                )}
               </div>
             );
           })}
@@ -417,11 +402,6 @@ export default function PromptBankPage() {
                   Cara pakai:{" "}
                 </span>
                 {detailItem.note}
-              </p>
-            )}
-            {detailItem.created_by && personById.get(detailItem.created_by) && (
-              <p className="text-xs text-zinc-400">
-                — {personShort(personById.get(detailItem.created_by))}
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3">
