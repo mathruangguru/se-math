@@ -5,6 +5,7 @@ import {
   ListTree,
   Link2,
   Laugh,
+  Sparkles,
   ClipboardList,
   Radar,
   Building2,
@@ -26,6 +27,7 @@ const mainNav = [
   { to: "/b2b", label: "B2B Center", icon: Building2 },
   { to: "/hyperlist", label: "Hyperlist", icon: ListTree },
   { to: "/link", label: "Link", icon: Link2 },
+  { to: "/prompt", label: "Bank Prompt", icon: Sparkles },
   { to: "/jokes", label: "Pojok Jokes", icon: Laugh },
 ];
 

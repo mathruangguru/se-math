@@ -10,6 +10,7 @@ import LinkPage from "./pages/LinkPage";
 import JokesPage from "./pages/JokesPage";
 import ManpowerPage from "./pages/ManpowerPage";
 import PotentialWorkPage from "./pages/PotentialWorkPage";
+import PromptBankPage from "./pages/PromptBankPage";
 import B2bCenterPage from "./pages/B2bCenterPage";
 import B2bProjectPage from "./pages/B2bProjectPage";
 import SyllabusTemplatePage from "./pages/SyllabusTemplatePage";
@@ -33,6 +34,7 @@ const App = () => {
           <Route path="/jokes" element={<JokesPage />} />
           <Route path="/manpower" element={<ManpowerPage />} />
           <Route path="/potential" element={<PotentialWorkPage />} />
+          <Route path="/prompt" element={<PromptBankPage />} />
           <Route path="/b2b" element={<B2bCenterPage />} />
           <Route path="/b2b/silabus/:id" element={<SyllabusTemplatePage />} />
           <Route path="/b2b/materi/:id" element={<MaterialPage />} />
